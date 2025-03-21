@@ -1,6 +1,6 @@
 # OTEL Wrapper for zerolog
 
-[![godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/adreasnow/otelzlog) [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/adreasnow/otelzlog/main/LICENSE) [![Build Status](https://github.com/adreasnow/otelzlog/actions/workflows/test-tag.yml/badge.svg)](https://github.com/adreasnow/otelzlog/actions/workflows/test-tag.yml) [![Go Coverage](https://github.com/adreasnow/otelzlog/wiki/coverage.svg)](https://raw.githack.com/wiki/adreasnow/otelzlog/coverage.html)
+[![godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/adreasnow/otelzlog) [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/adreasnow/otelzlog/main/LICENSE) [![Build Status](https://github.com/adreasnow/otelzlog/actions/workflows/test-tag.yaml/badge.svg?branch=main)](https://github.com/adreasnow/otelzlog/actions/workflows/test-tag.yaml) [![Go Coverage](https://github.com/adreasnow/otelzlog/wiki/coverage.svg)](https://raw.githack.com/wiki/adreasnow/otelzlog/coverage.html)
 
 The otelzlog package provides a hook to use in order to send zerolog events to OTEL logs
 
