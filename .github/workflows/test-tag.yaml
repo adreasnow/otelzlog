@@ -1,6 +1,11 @@
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 name: Test and tag
 permissions:
@@ -25,7 +30,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
 
   test:
-    name: Run tests
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,7 +49,10 @@ jobs:
           --junitfile report.xml
           --packages="./..."
           --format testname
-          --rerun-fails
+          --rerun-fails=3
+          --
+          -coverpkg=./...
+          -coverprofile=coverage.out
 
       - name: Attach tests to GHA
         uses: dorny/test-reporter@v2.0.0
@@ -56,26 +64,20 @@ jobs:
           path: report.xml
           max-annotations: 30
 
-  coverage:
-    name: Generate code coverage
-    if: ${{ github.event_name != 'pull_request'  }}
-    runs-on: ubuntu-latest
-    steps:
       - name: Update coverage report
         uses: ncruces/go-coverage-report@main
         with:
+          coverage-file: coverage.out
           report: "true"
           chart: "true"
           amend: "true"
-        continue-on-error: true
 
   tag:
     if: ${{ github.event_name != 'pull_request'  }}
-    name: Increment tag
+    name: Increment Tag
     needs:
       - lint
       - test
-      - coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -85,8 +87,9 @@ jobs:
         uses: reecetech/version-increment@2024.10.1
         id: version
         with:
-          scheme: calver
+          scheme: semver
           increment: patch
+          tag_prefix: v
 
       - name: Create tag
         uses: actions/github-script@v5
@@ -95,6 +98,6 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/v${{ steps.version.outputs.version }}',
+              ref: 'refs/tags/${{ steps.version.outputs.v-version }}',
               sha: context.sha
             })
