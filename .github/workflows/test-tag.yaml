@@ -1,23 +1,103 @@
 on: [push, pull_request]
 name: Test and tag
+permissions:
+  contents: write
+
 jobs:
+  lint:
+    name: Golang-CI Lint
+    runs-on: [self-hosted, linux, x64, linux-al2023]
+    needs:
+      - semver
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+
+      - name: Run Golang-CI Lint
+        uses: golangci/golangci-lint-action@v6
+
   test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+
+      - name: Test
+        run: >
+          go tool gotestsum
+          --junitfile report.xml
+          --packages="./..."  .
+          --format testname
+
+      - name: Attach tests to GHA
+        uses: dorny/test-reporter@v2.0.0
+        if: ${{ !cancelled() }}
+        id: tests
+        with:
+          name: Test Results
+          reporter: java-junit
+          path: report.xml
+          max-annotations: 30
+
+  version-matrix:
     strategy:
       matrix:
         go-version: [1.21.x, 1.22.x, 1.23.x, 1.24.x]
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache-dependency-path: |
+            go.sum
+
+      - name: Test
+        run: >
+          go tool gotestsum
+          --packages="./..."  .
+          --format testname
+
+  tag:
+    needs:
+      - lint
+      - test
+      - version-matrix
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Test
-        run: go test -race -bench . -benchmem ./...
-      - name: Test CBOR
-        run: go test -tags binary_log ./...
+
+      - name: Get next version
+        uses: reecetech/version-increment@2024.10.1
+        id: version
+        with:
+          scheme: calver
+          increment: patch
+
+      - name: Create tag
+        run: |
+          git tag -a ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
   coverage:
     runs-on: ubuntu-latest
     steps:
