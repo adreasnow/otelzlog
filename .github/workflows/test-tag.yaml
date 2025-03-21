@@ -6,9 +6,7 @@ permissions:
 jobs:
   lint:
     name: Golang-CI Lint
-    runs-on: [self-hosted, linux, x64, linux-al2023]
-    needs:
-      - semver
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
