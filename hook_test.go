@@ -25,10 +25,16 @@ import (
 )
 
 func TestHook(t *testing.T) {
-	stack := otelstack.Stack{}
+	stack := otelstack.New()
 	shutdownStack, err := stack.Start(t.Context())
 	require.NoError(t, err, "must be able to start otelstack")
-	t.Cleanup(func() { shutdownStack(context.Background()) })
+	stack.SetTestEnv(t)
+
+	t.Cleanup(func() {
+		if err := shutdownStack(context.Background()); err != nil {
+			// do nothing
+		}
+	})
 
 	otelResources, err := resource.New(t.Context(), resource.WithAttributes(attribute.String("service.name", os.Getenv("OTEL_SERVICE_NAME"))))
 	require.NoError(t, err, "must be able to set up resources")
@@ -44,7 +50,11 @@ func TestHook(t *testing.T) {
 			),
 		)
 
-		t.Cleanup(func() { exporter.Shutdown(context.Background()) })
+		t.Cleanup(func() {
+			if err := exporter.Shutdown(context.Background()); err != nil {
+				// do nothing
+			}
+		})
 	}
 
 	{ // set up otel logger
@@ -60,7 +70,11 @@ func TestHook(t *testing.T) {
 			),
 		)
 
-		t.Cleanup(func() { exporter.Shutdown(context.Background()) })
+		t.Cleanup(func() {
+			if err := exporter.Shutdown(context.Background()); err != nil {
+				// do nothing
+			}
+		})
 	}
 
 	ctx := log.
