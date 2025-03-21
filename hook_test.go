@@ -78,7 +78,7 @@ func TestHook(t *testing.T) {
 	}
 
 	ctx := log.
-		Output(zerolog.ConsoleWriter{Out: os.Stderr}).
+		Output(zerolog.ConsoleWriter{Out: os.Stdout}).
 		Hook(&Hook{}).
 		WithContext(t.Context())
 

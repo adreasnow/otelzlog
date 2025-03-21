@@ -12,7 +12,7 @@ The otelzlog package provides a hook to use in order to send zerolog events to O
 global.SetLoggerProvider(provider)
 
 // initialise the logger, saving it to the context, and pass in your default logger
-ctx = otelzlog.New(ctx, zerolog.ConsoleWriter{Out: os.Stderr})
+ctx = otelzlog.New(ctx, zerolog.ConsoleWriter{Out: os.Stdout})
 
 // set up your spans and traces as needed
 tracer := otel.Tracer("service-name")
