@@ -31,12 +31,12 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	var logData map[string]any
 	_ = json.Unmarshal([]byte(ev), &logData)
 
-	// convert each pulled attribute into the equivalent otel log coutnerpart
+	// convert each pulled attribute into the equivalent otel log counterpart
 	var attributes []log.KeyValue
 	for k, v := range logData {
 		attributes = append(attributes, log.KeyValue{
 			Key:   k,
-			Value: convertAttrribute(v),
+			Value: convertAttribute(v),
 		})
 	}
 

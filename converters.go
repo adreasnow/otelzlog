@@ -12,7 +12,7 @@ import (
 )
 
 // Converts the logging level from a zerolog.Level into a an otel log.Severity
-// and the correspodning severity level string
+// and the corresponding severity level string
 func convertLevel(level zerolog.Level) (log.Severity, string) {
 	switch level {
 	case zerolog.TraceLevel:
@@ -34,8 +34,8 @@ func convertLevel(level zerolog.Level) (log.Severity, string) {
 	}
 }
 
-// Converts value from `any` into the equvalent otel log.Value
-func convertAttrribute(v any) log.Value {
+// Converts value from `any` into the equivalent otel log.Value
+func convertAttribute(v any) log.Value {
 	switch val := v.(type) {
 	case bool:
 		return log.BoolValue(val)
@@ -96,7 +96,7 @@ func convertAttrribute(v any) log.Value {
 	case reflect.Slice, reflect.Array:
 		items := make([]log.Value, 0, val.Len())
 		for i := range val.Len() {
-			items = append(items, convertAttrribute(val.Index(i).Interface()))
+			items = append(items, convertAttribute(val.Index(i).Interface()))
 		}
 		return log.SliceValue(items...)
 	case reflect.Map:
@@ -111,7 +111,7 @@ func convertAttrribute(v any) log.Value {
 			}
 			kvs = append(kvs, log.KeyValue{
 				Key:   key,
-				Value: convertAttrribute(val.MapIndex(k).Interface()),
+				Value: convertAttribute(val.MapIndex(k).Interface()),
 			})
 		}
 		return log.MapValue(kvs...)
@@ -119,7 +119,7 @@ func convertAttrribute(v any) log.Value {
 		if val.IsNil() {
 			return log.Value{}
 		}
-		return convertAttrribute(val.Elem().Interface())
+		return convertAttribute(val.Elem().Interface())
 	}
 
 	// Try to handle this as gracefully as possible.

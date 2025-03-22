@@ -64,7 +64,7 @@ func TestConvertLevel(t *testing.T) {
 	}
 }
 
-func TestConvertAttrribute(t *testing.T) {
+func TestConvertAttribute(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
@@ -210,7 +210,7 @@ func TestConvertAttrribute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.input), func(t *testing.T) {
-			out := convertAttrribute(tt.input)
+			out := convertAttribute(tt.input)
 			assert.Equal(t, tt.expected, out)
 		})
 	}

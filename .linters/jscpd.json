@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/*.md",
+    "**/myFolderToSkip/**",
+    "converters_test.go"
+  ]
+}
