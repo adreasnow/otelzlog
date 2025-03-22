@@ -73,7 +73,7 @@ jobs:
           amend: "true"
 
   megalinter:
-    name: Run megalinter
+    name: Run Megalinter
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
