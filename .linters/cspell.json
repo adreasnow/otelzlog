@@ -1,0 +1,41 @@
+{
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/vscode-extension/**",
+    "**/.git/**",
+    "**/.pnpm-lock.json",
+    ".vscode",
+    "package-lock.json",
+    "megalinter-reports"
+  ],
+  "language": "en",
+  "version": "0.2",
+  "words": [
+    "Poitrey",
+    "SHELLCHECK",
+    "adreasnow",
+    "coverpkg",
+    "coverprofile",
+    "dorny",
+    "golangci",
+    "gomod",
+    "gotestsum",
+    "govet",
+    "junitfile",
+    "lostcancel",
+    "ncruces",
+    "otelstack",
+    "otelzlog",
+    "otlplog",
+    "otlploggrpc",
+    "otlptrace",
+    "otlptracegrpc",
+    "reecetech",
+    "sdklog",
+    "sdktrace",
+    "staticcheck",
+    "stretchr",
+    "testname",
+    "zerolog"
+  ]
+}

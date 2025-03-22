@@ -87,15 +87,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_COMMENT_REPORTER: true
-          # ENABLE_LINTERS: ACTION_ACTIONLINT,REPOSITORY_GITLEAKS,BASH_SHELLCHECK
-          REPOSITORY_GITLEAKS_PR_COMMITS_SCAN: true
-          VALIDATE_ALL_CODEBASE: true
+
   tag:
     if: ${{ github.event_name != 'pull_request'  }}
     name: Increment Tag
     needs:
       - lint
       - test
+      - megalinter
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -110,7 +109,7 @@ jobs:
           tag_prefix: v
 
       - name: Create tag
-        uses: actions/github-script@v5
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.git.createRef({
