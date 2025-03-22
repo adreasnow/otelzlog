@@ -86,7 +86,7 @@ jobs:
         uses: oxsecurity/megalinter/flavors/documentation@v8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_COMMENT_REPORTER: true
+          GITHUB_STATUS_REPORTER: true
 
   tag:
     if: ${{ github.event_name != 'pull_request'  }}
