@@ -28,7 +28,7 @@ func TestHook(t *testing.T) {
 	stack := otelstack.New()
 	shutdownStack, err := stack.Start(t.Context())
 	require.NoError(t, err, "must be able to start otelstack")
-	stack.SetTestEnv(t)
+	stack.SetTestEnvGRPC(t)
 
 	t.Cleanup(func() {
 		if err := shutdownStack(context.Background()); err != nil {
@@ -97,7 +97,7 @@ func TestHook(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	events, err := stack.Seq.GetEvents(ctx)
+	events, err := stack.Seq.GetEvents(ctx, 5)
 	require.NoError(t, err, "must be able to get events from seq")
 
 	require.Len(t, events, 1)
