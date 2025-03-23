@@ -38,6 +38,7 @@
     "testname",
     "zerolog",
     "jsonfile",
-    "ctrf"
+    "ctrf",
+    "otelslog"
   ]
 }
