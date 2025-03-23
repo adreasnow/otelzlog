@@ -1,3 +1,5 @@
+// Package otelzlog converters hold the functions that are needed to convert
+// between zerolog and otel logging event types
 package otelzlog
 
 import (
@@ -11,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/log"
 )
 
-// Converts the logging level from a zerolog.Level into a an otel log.Severity
+// convertLevel converts the logging level from a zerolog.Level into a an otel log.Severity
 // and the corresponding severity level string
 func convertLevel(level zerolog.Level) (log.Severity, string) {
 	switch level {
@@ -34,7 +36,8 @@ func convertLevel(level zerolog.Level) (log.Severity, string) {
 	}
 }
 
-// Converts value from `any` into the equivalent otel log.Value
+// convertAttribute converts value from `any` into the equivalent otel log.Value.
+// This function is a direct copy paste from the otelslog package.
 func convertAttribute(v any) log.Value {
 	switch val := v.(type) {
 	case bool:

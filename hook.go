@@ -1,3 +1,4 @@
+// Package otelzlog hook holds the hook that is attached to the zerolog logger
 package otelzlog
 
 import (
@@ -8,17 +9,19 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
 	otelGlobalLogger "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Hook is the parent struct of the otelzlog handler
 type Hook struct{}
 
-// When the log is called, this function extracts the attributes and log level from
-// the `*zerolog.Event`, and pulls the span from the passed in context in order to
-// build the respective otel log.Record
+// Run extracts the attributes and log level from the `*zerolog.Event`, and
+// pulls the span from the passed in context in order to build the respective
+// otel log.Record
 func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx()
 
@@ -29,7 +32,15 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	// pull the buffer from the zerolog.Event
 	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
 	var logData map[string]any
-	_ = json.Unmarshal([]byte(ev), &logData)
+	err := json.Unmarshal([]byte(ev), &logData)
+	if err != nil {
+		// log to the zerolog logger if there is an error with the request
+		zlog.Ctx(e.GetCtx()).Error().Ctx(e.GetCtx()).
+			Err(err).
+			Str("log.level", level.String()).
+			Str("log.message", msg).
+			Msg("could not pull unmarshal the zerolog event's attribute buffer")
+	}
 
 	// convert each pulled attribute into the equivalent otel log counterpart
 	var attributes []log.KeyValue
@@ -40,16 +51,16 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		})
 	}
 
-	var error any
+	var errorAny any
 	for k, v := range logData {
 		switch k {
 		case zerolog.ErrorFieldName:
-			error = v
+			errorAny = v
 		}
 	}
 
 	if level >= 3 {
-		trace.SpanFromContext(ctx).SetStatus(codes.Error, fmt.Sprintf("%s: %v", msg, error))
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, fmt.Sprintf("%s: %v", msg, errorAny))
 	}
 
 	span := trace.SpanFromContext(ctx).SpanContext()

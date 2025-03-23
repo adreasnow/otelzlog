@@ -36,6 +36,9 @@
     "staticcheck",
     "stretchr",
     "testname",
-    "zerolog"
+    "zerolog",
+    "jsonfile",
+    "ctrf",
+    "otelslog"
   ]
 }

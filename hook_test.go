@@ -32,7 +32,7 @@ func TestHook(t *testing.T) {
 
 	t.Cleanup(func() {
 		if err := shutdownStack(context.Background()); err != nil {
-			// do nothing
+			t.Logf("error shutting down the stack: %v", err)
 		}
 	})
 
@@ -52,7 +52,7 @@ func TestHook(t *testing.T) {
 
 		t.Cleanup(func() {
 			if err := exporter.Shutdown(context.Background()); err != nil {
-				// do nothing
+				t.Logf("error shutting down the trace exporter: %v", err)
 			}
 		})
 	}
@@ -72,7 +72,7 @@ func TestHook(t *testing.T) {
 
 		t.Cleanup(func() {
 			if err := exporter.Shutdown(context.Background()); err != nil {
-				// do nothing
+				t.Logf("error shutting down the log exporter: %v", err)
 			}
 		})
 	}

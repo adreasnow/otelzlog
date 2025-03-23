@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Creates a new zerolog logger and embeds it in the context to be passed around your app
 func TestNew(t *testing.T) {
 	t.Run("no writers", func(t *testing.T) {
 		t.Parallel()
