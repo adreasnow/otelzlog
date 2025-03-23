@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
 	otelGlobalLogger "go.opentelemetry.io/otel/log/global"
@@ -31,7 +32,15 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	// pull the buffer from the zerolog.Event
 	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
 	var logData map[string]any
-	json.Unmarshal([]byte(ev), &logData)
+	err := json.Unmarshal([]byte(ev), &logData)
+	if err != nil {
+		// log to the zerolog logger if there is an error with the request
+		zlog.Ctx(e.GetCtx()).Error().Ctx(e.GetCtx()).
+			Err(err).
+			Str("log.level", level.String()).
+			Str("log.message", msg).
+			Msg("could not pull unmarshal the zerolog event's attribute buffer")
+	}
 
 	// convert each pulled attribute into the equivalent otel log counterpart
 	var attributes []log.KeyValue
