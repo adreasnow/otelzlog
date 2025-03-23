@@ -1,4 +1,4 @@
-// 
+// Package otelzlog hook holds the hook that is attached to the zerolog logger
 package otelzlog
 
 import (
@@ -31,7 +31,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	// pull the buffer from the zerolog.Event
 	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
 	var logData map[string]any
-	_ = json.Unmarshal([]byte(ev), &logData)
+	json.Unmarshal([]byte(ev), &logData)
 
 	// convert each pulled attribute into the equivalent otel log counterpart
 	var attributes []log.KeyValue
@@ -42,16 +42,16 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		})
 	}
 
-	var error any
+	var errorAny any
 	for k, v := range logData {
 		switch k {
 		case zerolog.ErrorFieldName:
-			error = v
+			errorAny = v
 		}
 	}
 
 	if level >= 3 {
-		trace.SpanFromContext(ctx).SetStatus(codes.Error, fmt.Sprintf("%s: %v", msg, error))
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, fmt.Sprintf("%s: %v", msg, errorAny))
 	}
 
 	span := trace.SpanFromContext(ctx).SpanContext()

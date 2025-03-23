@@ -1,3 +1,5 @@
+// Package otelzlog converters hold the functions that are needed to convert
+// between zerolog and otel logging event types
 package otelzlog
 
 import (
@@ -34,7 +36,8 @@ func convertLevel(level zerolog.Level) (log.Severity, string) {
 	}
 }
 
-// convertAttribute converts value from `any` into the equivalent otel log.Value
+// convertAttribute converts value from `any` into the equivalent otel log.Value.
+// This function is a direct copy paste from the otelslog package.
 func convertAttribute(v any) log.Value {
 	switch val := v.(type) {
 	case bool:
