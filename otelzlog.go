@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Creates a new zerolog logger and embeds it in the context to be passed around your app
+// New creates a new zerolog logger and embeds it in the context to be passed around your app.
 func New(ctx context.Context, writers ...io.Writer) (context.Context, error) {
 	if len(writers) == 0 {
 		return ctx, fmt.Errorf("must specify at least one writer")

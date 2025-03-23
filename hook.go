@@ -1,3 +1,4 @@
+// 
 package otelzlog
 
 import (
@@ -14,11 +15,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Hook is the parent struct of the otelzlog handler
 type Hook struct{}
 
-// When the log is called, this function extracts the attributes and log level from
-// the `*zerolog.Event`, and pulls the span from the passed in context in order to
-// build the respective otel log.Record
+// Run extracts the attributes and log level from the `*zerolog.Event`, and
+// pulls the span from the passed in context in order to build the respective
+// otel log.Record
 func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx()
 
