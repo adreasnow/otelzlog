@@ -1,3 +1,4 @@
+// Package otelzlog provides a bridge between zerolog and otel logging
 package otelzlog
 
 import (

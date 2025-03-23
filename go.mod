@@ -256,6 +256,7 @@ require (
 )
 
 tool (
+	github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	gotest.tools/gotestsum
 )
