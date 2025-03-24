@@ -97,7 +97,7 @@ func TestHook(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	events, err := stack.Seq.GetEvents(ctx, 5)
+	events, err := stack.Seq.GetEvents(1, 10)
 	require.NoError(t, err, "must be able to get events from seq")
 
 	require.Len(t, events, 1)
