@@ -30,6 +30,8 @@ func TestHook(t *testing.T) {
 	require.NoError(t, err, "must be able to start otelstack")
 	stack.SetTestEnvGRPC(t)
 
+	t.Setenv("OTEL_SERVICE_NAME", "test-service")
+
 	t.Cleanup(func() {
 		if err := shutdownStack(context.Background()); err != nil {
 			t.Logf("error shutting down the stack: %v", err)
@@ -97,21 +99,23 @@ func TestHook(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	events, err := stack.Seq.GetEvents(1, 10)
-	require.NoError(t, err, "must be able to get events from seq")
+	{
+		events, err := stack.Seq.GetEvents(1, 10)
+		require.NoError(t, err, "must be able to get events from seq")
 
-	require.Len(t, events, 1)
-	require.Len(t, events[0].MessageTemplateTokens, 1)
-	assert.Equal(t, "test log", events[0].MessageTemplateTokens[0].Text)
+		require.Len(t, events, 1)
+		require.Len(t, events[0].MessageTemplateTokens, 1)
+		assert.Equal(t, "test log", events[0].MessageTemplateTokens[0].Text)
 
-	m := map[string]any{}
-	for _, kv := range events[0].Properties {
-		m[kv.Name] = kv.Value
+		m := map[string]any{}
+		for _, kv := range events[0].Properties {
+			m[kv.Name] = kv.Value
+		}
+
+		// test.string becomes a map
+		assert.Equal(t, map[string]any{"string": any("test-value")}, m["test"])
+
+		assert.Equal(t, traceID, m["TraceId"])
+		assert.Equal(t, spanID, m["SpanId"])
 	}
-
-	// test.string becomes a map
-	assert.Equal(t, map[string]any{"string": any("test-value")}, m["test"])
-
-	assert.Equal(t, traceID, m["TraceId"])
-	assert.Equal(t, spanID, m["SpanId"])
 }

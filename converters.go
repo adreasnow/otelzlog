@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 )
 
@@ -138,4 +139,27 @@ func convertUintValue(v uint64) log.Value {
 		return log.StringValue(strconv.FormatUint(v, 10))
 	}
 	return log.Int64Value(int64(v))
+}
+
+func convertLogToAttribute(attr log.Value) attribute.Value {
+	switch attr.Kind() {
+	case log.KindString:
+		return attribute.StringValue(attr.String())
+	case log.KindFloat64:
+		return attribute.Float64Value(attr.AsFloat64())
+	case log.KindInt64:
+		return attribute.Int64Value(attr.AsInt64())
+	case log.KindBool:
+		return attribute.BoolValue(attr.AsBool())
+	case log.KindBytes:
+		return attribute.StringValue(string(attr.AsBytes()))
+	case log.KindSlice:
+		return attribute.StringValue(fmt.Sprintf("%v", attr.AsSlice()))
+	case log.KindMap:
+		return attribute.StringValue(fmt.Sprintf("%v", attr.AsMap()))
+	case log.KindEmpty:
+		return attribute.StringValue("")
+	}
+
+	return attribute.StringValue(attr.AsString())
 }

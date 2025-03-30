@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
 	otelGlobalLogger "go.opentelemetry.io/otel/log/global"
@@ -43,11 +44,19 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	}
 
 	// convert each pulled attribute into the equivalent otel log counterpart
-	var attributes []log.KeyValue
+	var logAttributes []log.KeyValue
+	var traceAttributes []attribute.KeyValue
 	for k, v := range logData {
-		attributes = append(attributes, log.KeyValue{
+		logAttribute := convertAttribute(v)
+		traceAttribute := convertLogToAttribute(logAttribute)
+		logAttributes = append(logAttributes, log.KeyValue{
 			Key:   k,
-			Value: convertAttribute(v),
+			Value: logAttribute,
+		})
+
+		traceAttributes = append(traceAttributes, attribute.KeyValue{
+			Key:   attribute.Key(k),
+			Value: traceAttribute,
 		})
 	}
 
@@ -65,15 +74,20 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 	span := trace.SpanFromContext(ctx).SpanContext()
 	if span.IsValid() {
-		attributes = append(attributes, log.KeyValue{
+		logAttributes = append(logAttributes, log.KeyValue{
 			Key:   "SpanId",
 			Value: log.StringValue(span.SpanID().String()),
 		})
-		attributes = append(attributes, log.KeyValue{
+		logAttributes = append(logAttributes, log.KeyValue{
 			Key:   "TraceId",
 			Value: log.StringValue(span.TraceID().String()),
 		})
 	}
+
+	trace.SpanFromContext(ctx).AddEvent(msg,
+		trace.WithAttributes(traceAttributes...),
+		trace.WithStackTrace(level >= zerolog.PanicLevel),
+	)
 
 	record := log.Record{}
 	record.SetTimestamp(time.Now())
@@ -82,7 +96,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	severityNumber, severityText := convertLevel(level)
 	record.SetSeverity(severityNumber)
 	record.SetSeverityText(severityText)
-	record.AddAttributes(attributes...)
+	record.AddAttributes(logAttributes...)
 
 	otelGlobalLogger.GetLoggerProvider().
 		Logger(os.Getenv("OTEL_SERVICE_NAME")).
