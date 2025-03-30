@@ -152,7 +152,7 @@ func convertLogToAttribute(attr log.Value) attribute.Value {
 	case log.KindBool:
 		return attribute.BoolValue(attr.AsBool())
 	case log.KindBytes:
-		return attribute.StringValue(fmt.Sprintf("%s", attr.AsBytes()))
+		return attribute.StringValue(string(attr.AsBytes()))
 	case log.KindSlice:
 		return attribute.StringValue(fmt.Sprintf("%v", attr.AsSlice()))
 	case log.KindMap:
