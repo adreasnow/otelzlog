@@ -2,11 +2,14 @@ package otelzlog
 
 import (
 	"fmt"
+	"math"
+	"math/rand/v2"
 	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 )
 
@@ -219,11 +222,69 @@ func TestConvertAttribute(t *testing.T) {
 func TestConvertUintValue(t *testing.T) {
 	t.Parallel()
 
+	for range 100 {
+		in := rand.Uint64()
+		t.Run(fmt.Sprintf("%d", in), func(t *testing.T) {
+			v := convertUintValue(in)
+			if in > math.MaxInt64 {
+				assert.Equal(t, log.KindString, v.Kind())
+				assert.Equal(t, fmt.Sprintf("%d", in), v.String())
+			} else {
+				assert.Equal(t, log.KindInt64, v.Kind())
+				assert.Equal(t, int64(in), v.AsInt64())
+			}
+		})
+	}
 }
 
-// func convertUintValue(v uint64) log.Value {
-// 	if v > math.MaxInt64 {
-// 		return log.StringValue(strconv.FormatUint(v, 10))
-// 	}
-// 	return log.Int64Value(int64(v))
-// }
+func TestConvertLogToAttribute(t *testing.T) {
+	f64 := rand.Float64()
+	i64 := rand.Int64()
+	tests := []struct {
+		input    log.Value
+		expected attribute.Value
+	}{
+		{
+			input:    log.StringValue("test"),
+			expected: attribute.StringValue("test"),
+		},
+		{
+			input:    log.Float64Value(f64),
+			expected: attribute.Float64Value(f64),
+		},
+		{
+			input:    log.Int64Value(i64),
+			expected: attribute.Int64Value(i64),
+		},
+		{
+			input:    log.BoolValue(true),
+			expected: attribute.BoolValue(true),
+		},
+		{
+			input:    log.BytesValue([]byte("test")),
+			expected: attribute.StringValue("test"),
+		},
+		{
+			input: log.SliceValue(
+				log.Int64Value(1),
+				log.Int64Value(2),
+				log.Int64Value(3),
+			),
+			expected: attribute.StringValue("[1 2 3]"),
+		},
+		{
+			input: log.MapValue(
+				log.Int64("a", 1),
+				log.Int64("b", 2),
+				log.Int64("c", 3),
+			),
+			expected: attribute.StringValue("[a:1 b:2 c:3]"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input.AsString(), func(t *testing.T) {
+			out := convertLogToAttribute(tt.input)
+			assert.Equal(t, out, tt.expected)
+		})
+	}
+}
