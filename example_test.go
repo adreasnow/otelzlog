@@ -13,7 +13,7 @@ import (
 )
 
 func ExampleNew() {
-	// Make sure there's something that can recieve your otel telemetry
+	// Make sure there's something that can receive your otel telemetry
 	stack := otelstack.New()
 	shutdownStack, err := stack.Start(context.Background())
 	defer func() {
