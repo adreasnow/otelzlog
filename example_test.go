@@ -16,6 +16,9 @@ func ExampleNew() {
 	// Make sure there's something that can receive your otel telemetry
 	stack := otelstack.New()
 	shutdownStack, err := stack.Start(context.Background())
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not set start stack")
+	}
 	defer func() {
 		if err := shutdownStack(context.Background()); err != nil {
 			log.Fatal().Err(err).Msg("error shutting down otelstack")
@@ -23,8 +26,12 @@ func ExampleNew() {
 	}()
 
 	serviceName := "test-service"
-	os.Setenv("OTEL_SERVICE_NAME", serviceName)
-	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:"+stack.Collector.Ports[4317].Port())
+	if err := os.Setenv("OTEL_SERVICE_NAME", serviceName); err != nil {
+		log.Fatal().Err(err).Msg("could not set otel service name")
+	}
+	if err := os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:"+stack.Collector.Ports[4317].Port()); err != nil {
+		log.Fatal().Err(err).Msg("could not set otel exporter endpoint")
+	}
 
 	// Set up your otel exporters
 	shutdownOTEL, err := setupOTEL(context.Background())
