@@ -24,8 +24,66 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
+func setupOTEL(ctx context.Context) (func(), error) {
+	shutdown := func() {}
+	otelResources, err := resource.New(ctx, resource.WithAttributes(attribute.String("service.name", os.Getenv("OTEL_SERVICE_NAME"))))
+	if err != nil {
+		log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error setting up resources")
+		return shutdown, err
+	}
+
+	{ // set up otel tracer
+		exporter, err := otlptracegrpc.New(ctx)
+		if err != nil {
+			log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error setting up trace exporter")
+			return shutdown, err
+		}
+
+		otel.SetTracerProvider(
+			sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithBatcher(exporter),
+				sdktrace.WithResource(otelResources),
+			),
+		)
+
+		shutdown = func() {
+			if err := exporter.Shutdown(context.Background()); err != nil {
+				log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error shutting down the trace exporter")
+			}
+		}
+	}
+
+	{ // set up otel logger
+		exporter, err := otlploggrpc.New(ctx)
+		if err != nil {
+			log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error setting up log exporter")
+			return shutdown, err
+		}
+
+		otelLogGlobal.SetLoggerProvider(
+			sdklog.NewLoggerProvider(
+				sdklog.WithProcessor(
+					sdklog.NewBatchProcessor(exporter),
+				),
+				sdklog.WithResource(otelResources),
+			),
+		)
+
+		shutdown = func() {
+			if err := exporter.Shutdown(context.Background()); err != nil {
+				log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error shutting down the trace exporter")
+			}
+			if err := exporter.Shutdown(context.Background()); err != nil {
+				log.Ctx(ctx).Error().Ctx(ctx).Err(err).Msg("error shutting down the log exporter")
+			}
+		}
+	}
+	return shutdown, nil
+}
+
 func TestHook(t *testing.T) {
-	stack := otelstack.New()
+	stack := otelstack.New(false, true, true)
 	shutdownStack, err := stack.Start(t.Context())
 	require.NoError(t, err, "must be able to start otelstack")
 	stack.SetTestEnvGRPC(t)
@@ -38,46 +96,9 @@ func TestHook(t *testing.T) {
 		}
 	})
 
-	otelResources, err := resource.New(t.Context(), resource.WithAttributes(attribute.String("service.name", os.Getenv("OTEL_SERVICE_NAME"))))
-	require.NoError(t, err, "must be able to set up resources")
-	{ // set up otel tracer
-		exporter, err := otlptracegrpc.New(t.Context())
-		require.NoError(t, err, "must be able to set up trace exporter")
-
-		otel.SetTracerProvider(
-			sdktrace.NewTracerProvider(
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
-				sdktrace.WithBatcher(exporter),
-				sdktrace.WithResource(otelResources),
-			),
-		)
-
-		t.Cleanup(func() {
-			if err := exporter.Shutdown(context.Background()); err != nil {
-				t.Logf("error shutting down the trace exporter: %v", err)
-			}
-		})
-	}
-
-	{ // set up otel logger
-		exporter, err := otlploggrpc.New(t.Context())
-		require.NoError(t, err, "must be able to set up log exporter")
-
-		otelLogGlobal.SetLoggerProvider(
-			sdklog.NewLoggerProvider(
-				sdklog.WithProcessor(
-					sdklog.NewBatchProcessor(exporter),
-				),
-				sdklog.WithResource(otelResources),
-			),
-		)
-
-		t.Cleanup(func() {
-			if err := exporter.Shutdown(context.Background()); err != nil {
-				t.Logf("error shutting down the log exporter: %v", err)
-			}
-		})
-	}
+	shutdown, err := setupOTEL(t.Context())
+	require.NoError(t, err, "must be able to set up OTEL logger")
+	t.Cleanup(shutdown)
 
 	ctx := log.
 		Output(zerolog.ConsoleWriter{Out: os.Stdout}).
