@@ -14,7 +14,7 @@ import (
 
 func ExampleNew() {
 	// Make sure there's something that can receive your otel telemetry
-	stack := otelstack.New()
+	stack := otelstack.New(false, true, false)
 	shutdownStack, err := stack.Start(context.Background())
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not set start stack")

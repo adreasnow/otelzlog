@@ -32,8 +32,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/OpenPeeDeeP/depguard/v2 v2.2.1 h1:vckeWVESWp6Qog7UZSARNqfu/cZqvki8zsuj3piCMx4=
 github.com/OpenPeeDeeP/depguard/v2 v2.2.1/go.mod h1:q4DKzC4UcVaAvcfd41CZh0PWpGgzrVxUYBlgKNGquUo=
-github.com/adreasnow/otelstack v1.0.11 h1:xANMNwaZ+5rcNXPfbc7JmAu8mfYEtoliIV9ScEmNk7g=
-github.com/adreasnow/otelstack v1.0.11/go.mod h1:d+faSEyJWCXZs7aj9PrtKBLh5m2yS0kl9CVW24RcJm4=
+github.com/adreasnow/otelstack v1.1.1 h1:S5Mvw8Dx4SZ9Z76obqqwXVDiSzWuvV8TwYVI6Dhxdsg=
+github.com/adreasnow/otelstack v1.1.1/go.mod h1:d+faSEyJWCXZs7aj9PrtKBLh5m2yS0kl9CVW24RcJm4=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
 github.com/alecthomas/assert/v2 v2.11.0/go.mod h1:Bze95FyfUr7x34QZrjL+XP+0qgp/zg8yS+TtBj1WA3k=
 github.com/alecthomas/go-check-sumtype v0.3.1 h1:u9aUvbGINJxLVXiFvHUlPEaD7VDULsrxJb4Aq31NLkU=

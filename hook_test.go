@@ -83,7 +83,7 @@ func setupOTEL(ctx context.Context) (func(), error) {
 }
 
 func TestHook(t *testing.T) {
-	stack := otelstack.New()
+	stack := otelstack.New(false, true, true)
 	shutdownStack, err := stack.Start(t.Context())
 	require.NoError(t, err, "must be able to start otelstack")
 	stack.SetTestEnvGRPC(t)
