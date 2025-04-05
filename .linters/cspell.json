@@ -42,6 +42,8 @@
     "jsonfile",
     "ctrf",
     "otelslog",
-    "godoc"
+    "godoc",
+    "LINTERS",
+    "linters"
   ]
 }
