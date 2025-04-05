@@ -11,7 +11,7 @@ import (
 
 func TestNew(t *testing.T) {
 	t.Run("no writer", func(t *testing.T) {
-		stack := setupOTELSack(t)
+		stack := setupOTELStack(t)
 
 		ctx := New(t.Context())
 
@@ -22,7 +22,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("one writer", func(t *testing.T) {
-		stack := setupOTELSack(t)
+		stack := setupOTELStack(t)
 
 		buf := new(bytes.Buffer)
 		ctx := New(t.Context(),
@@ -38,7 +38,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("multiple writers", func(t *testing.T) {
-		stack := setupOTELSack(t)
+		stack := setupOTELStack(t)
 
 		buf1 := new(bytes.Buffer)
 		buf2 := new(bytes.Buffer)

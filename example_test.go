@@ -34,7 +34,7 @@ func ExampleNew() {
 	}
 
 	// Set up your otel exporters
-	shutdownOTEL, err := setupOTEL(context.Background())
+	shutdownOTEL, err := setupOTEL(context.Background(), stack.Collector.Ports[4317])
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to setup OTEL logger")
 	}
@@ -54,7 +54,7 @@ func ExampleNew() {
 
 	// Check that the log event has made it to the telemetry
 	{
-		events, err := stack.Seq.GetEvents(1, 30)
+		events, _, err := stack.Seq.GetEvents(1, 30)
 		if err != nil {
 			log.Fatal().Err(err).Msg("could not get events from seq")
 		}
@@ -62,7 +62,7 @@ func ExampleNew() {
 		noNewLine := strings.Split(buf.String(), "\n")[0]
 		noDate := strings.Split(noNewLine, " ")[1:]
 		fmt.Println(noDate)
-		fmt.Println(events[0].MessageTemplateTokens[0])
+		fmt.Println(events[0].Messages[0])
 	}
 
 	// Output:
