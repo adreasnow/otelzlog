@@ -2,6 +2,7 @@
 package otelzlog
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,22 +32,28 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		return
 	}
 
-	// pull the buffer from the zerolog.Event
-	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
 	var logData map[string]any
-	err := json.Unmarshal([]byte(ev), &logData)
-	if err != nil {
+	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
+	if err := json.Unmarshal([]byte(ev), &logData); err != nil {
 		// log to the zerolog logger if there is an error with the request
 		zlog.Ctx(e.GetCtx()).Error().Ctx(e.GetCtx()).
 			Err(err).
 			Str("log.level", level.String()).
 			Str("log.message", msg).
-			Msg("could not pull unmarshal the zerolog event's attribute buffer")
+			Msg("could not unmarshal the zerolog event's attribute buffer")
 	}
 
-	// convert each pulled attribute into the equivalent otel log and otel trace counterpart
-	var logAttributes []log.KeyValue
-	var traceAttributes []attribute.KeyValue
+	// convert zerolog attrs into otel log and span attrs
+	logAttributes := processSpanAttrs(ctx, msg, level, logData)
+
+	// create the otel log event and send it
+	sendLogMessage(ctx, msg, level, logAttributes)
+}
+
+// processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
+// It also adds the attributes into the span and sets the span as errored if the level is error or greater.
+func processSpanAttrs(ctx context.Context, msg string, level zerolog.Level, logData map[string]any) (logAttributes []log.KeyValue) {
+	traceAttributes := []attribute.KeyValue{}
 	for k, v := range logData {
 		switch k {
 		// if there was was an attribute called "error", then record the error in the span and
@@ -74,20 +81,25 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		}
 	}
 
-	// add an otel span event (attach the log to the span) and set it as errored if level is >= error
+	// add an otel span event (attach the log to the span)
 	trace.SpanFromContext(ctx).AddEvent(msg,
 		trace.WithAttributes(traceAttributes...),
 	)
+
+	// set the span as errored if level is >= error
 	if level >= 3 {
 		trace.SpanFromContext(ctx).SetStatus(codes.Error, "")
 	}
 
-	// create the otel log event and send it
+	return
+}
+
+func sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAttributes []log.KeyValue) {
+	severityNumber, severityText := convertLevel(level)
+
 	record := log.Record{}
 	record.SetTimestamp(time.Now())
 	record.SetBody(log.StringValue(msg))
-
-	severityNumber, severityText := convertLevel(level)
 	record.SetSeverity(severityNumber)
 	record.SetSeverityText(severityText)
 	record.AddAttributes(logAttributes...)
