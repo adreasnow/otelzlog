@@ -42,7 +42,7 @@ func ExampleNew() {
 
 	// Create your new logger
 	buf := new(bytes.Buffer)
-	ctx, err := New(context.Background(),
+	ctx := New(context.Background(),
 		zerolog.ConsoleWriter{Out: buf, NoColor: true},
 	)
 	if err != nil {

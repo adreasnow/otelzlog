@@ -8,7 +8,6 @@ import (
 
 	"github.com/adreasnow/otelstack"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/trace"
 
 	otelLogGlobal "go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -82,8 +80,9 @@ func setupOTEL(ctx context.Context) (func(), error) {
 	return shutdown, nil
 }
 
-func TestHook(t *testing.T) {
-	stack := otelstack.New(false, true, true)
+func setupOTELSack(t *testing.T) (stack *otelstack.Stack) {
+	t.Helper()
+	stack = otelstack.New(false, true, true)
 	shutdownStack, err := stack.Start(t.Context())
 	require.NoError(t, err, "must be able to start otelstack")
 	stack.SetTestEnvGRPC(t)
@@ -99,44 +98,52 @@ func TestHook(t *testing.T) {
 	shutdown, err := setupOTEL(t.Context())
 	require.NoError(t, err, "must be able to set up OTEL logger")
 	t.Cleanup(shutdown)
+	return
+}
+
+func sendTestEvents(ctx context.Context, t *testing.T) (spanID string, traceID string) {
+	t.Helper()
+
+	tracer := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME"))
+	ctx, span := tracer.Start(ctx, "test.segment")
+	span.SetAttributes(attribute.String("test", "test"))
+	log.Ctx(ctx).Info().Ctx(ctx).Str("test.string", "test-value").Msg("test log")
+	spanID = span.SpanContext().SpanID().String()
+	traceID = span.SpanContext().TraceID().String()
+	span.End()
+
+	time.Sleep(time.Second * 3)
+	return
+}
+
+func checkEvents(t *testing.T, stack *otelstack.Stack, spanID string, traceID string) {
+	events, err := stack.Seq.GetEvents(1, 10)
+	require.NoError(t, err, "must be able to get events from seq")
+
+	require.Len(t, events, 1)
+	require.Len(t, events[0].MessageTemplateTokens, 1)
+	assert.Equal(t, "test log", events[0].MessageTemplateTokens[0].Text)
+
+	m := map[string]any{}
+	for _, kv := range events[0].Properties {
+		m[kv.Name] = kv.Value
+	}
+
+	// test.string becomes a map
+	assert.Equal(t, map[string]any{"string": any("test-value")}, m["test"])
+
+	assert.Equal(t, traceID, m["TraceId"])
+	assert.Equal(t, spanID, m["SpanId"])
+}
+
+func TestHook(t *testing.T) {
+	stack := setupOTELSack(t)
 
 	ctx := log.
-		Output(zerolog.ConsoleWriter{Out: os.Stdout}).
 		Hook(&Hook{}).
 		WithContext(t.Context())
 
-	var spanID string
-	var traceID string
-	var span trace.Span
-	{ // send log
-		tracer := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME"))
-		ctx, span = tracer.Start(ctx, "test.segment")
-		span.SetAttributes(attribute.String("test", "test"))
-		log.Ctx(ctx).Info().Ctx(ctx).Str("test.string", "test-value").Msg("test log")
-		spanID = span.SpanContext().SpanID().String()
-		traceID = span.SpanContext().TraceID().String()
-		span.End()
-	}
+	spanID, traceID := sendTestEvents(ctx, t)
 
-	time.Sleep(time.Second * 3)
-
-	{
-		events, err := stack.Seq.GetEvents(1, 10)
-		require.NoError(t, err, "must be able to get events from seq")
-
-		require.Len(t, events, 1)
-		require.Len(t, events[0].MessageTemplateTokens, 1)
-		assert.Equal(t, "test log", events[0].MessageTemplateTokens[0].Text)
-
-		m := map[string]any{}
-		for _, kv := range events[0].Properties {
-			m[kv.Name] = kv.Value
-		}
-
-		// test.string becomes a map
-		assert.Equal(t, map[string]any{"string": any("test-value")}, m["test"])
-
-		assert.Equal(t, traceID, m["TraceId"])
-		assert.Equal(t, spanID, m["SpanId"])
-	}
+	checkEvents(t, stack, spanID, traceID)
 }

@@ -7,47 +7,53 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
-	t.Run("no writers", func(t *testing.T) {
-		t.Parallel()
-		_, err := New(t.Context())
-		require.Error(t, err, "must have an error if no writers are passed in")
+	t.Run("no writer", func(t *testing.T) {
+		stack := setupOTELSack(t)
+
+		ctx := New(t.Context())
+
+		log.Ctx(ctx).Info().Msg("test message")
+
+		spanID, traceID := sendTestEvents(ctx, t)
+		checkEvents(t, stack, spanID, traceID)
 	})
 
 	t.Run("one writer", func(t *testing.T) {
-		buf1 := new(bytes.Buffer)
+		stack := setupOTELSack(t)
 
-		ctx, err := New(t.Context(),
-			zerolog.ConsoleWriter{Out: buf1, NoColor: true},
+		buf := new(bytes.Buffer)
+		ctx := New(t.Context(),
+			zerolog.ConsoleWriter{Out: buf, NoColor: true},
 		)
-		require.NoError(t, err, "must not return an error")
 
 		log.Ctx(ctx).Info().Msg("test message")
 
-		line1 := buf1.String()
+		spanID, traceID := sendTestEvents(ctx, t)
+		checkEvents(t, stack, spanID, traceID)
 
-		assert.Contains(t, line1, "INF test message\n")
+		assert.Contains(t, buf.String(), "INF test message\n")
 	})
 
 	t.Run("multiple writers", func(t *testing.T) {
+		stack := setupOTELSack(t)
+
 		buf1 := new(bytes.Buffer)
 		buf2 := new(bytes.Buffer)
 
-		ctx, err := New(t.Context(),
+		ctx := New(t.Context(),
 			zerolog.ConsoleWriter{Out: buf1, NoColor: true},
 			zerolog.ConsoleWriter{Out: buf2, NoColor: true},
 		)
-		require.NoError(t, err)
 
 		log.Ctx(ctx).Info().Msg("test message")
 
-		line1 := buf1.String()
-		line2 := buf2.String()
+		spanID, traceID := sendTestEvents(ctx, t)
+		checkEvents(t, stack, spanID, traceID)
 
-		assert.Equal(t, line1, line2)
-		assert.Contains(t, line1, "INF test message\n")
+		assert.Equal(t, buf1.String(), buf2.String())
+		assert.Contains(t, buf1.String(), "INF test message\n")
 	})
 }

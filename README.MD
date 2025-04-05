@@ -7,12 +7,12 @@ The otelzlog package provides a hook to use in order to send zerolog events to O
 ## Usage
 
 ```go
-// Initiliase your OTEL configuration and save your logger to the global otel config with "go.opentelemetry.io/otel/log/global"
+// Initialise your OTEL configuration and save your logger to the global otel config with "go.opentelemetry.io/otel/log/global"
 ...
 global.SetLoggerProvider(provider)
 ...
 
-// Initialise the logger with as many writers as you'd like and save it to the conetxt
+// Initialise the logger with as few, or as many writers as you'd like and save it to the context.
 buf := new(bytes.Buffer)
 
 ctx = otelzlog.New(ctx,

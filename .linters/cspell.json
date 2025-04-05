@@ -6,9 +6,11 @@
     "**/.pnpm-lock.json",
     ".vscode",
     "package-lock.json",
-    "megalinter-reports"
+    "megalinter-reports",
+    "**.mod",
+    "**.sum"
   ],
-  "language": "en",
+  "language": "en-GB",
   "version": "0.2",
   "words": [
     "Poitrey",
@@ -39,6 +41,7 @@
     "zerolog",
     "jsonfile",
     "ctrf",
-    "otelslog"
+    "otelslog",
+    "godoc"
   ]
 }
