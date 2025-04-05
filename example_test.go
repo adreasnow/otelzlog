@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/adreasnow/otelstack"
@@ -24,14 +23,6 @@ func ExampleNew() {
 			log.Fatal().Err(err).Msg("error shutting down otelstack")
 		}
 	}()
-
-	serviceName := "test-service"
-	if err := os.Setenv("OTEL_SERVICE_NAME", serviceName); err != nil {
-		log.Fatal().Err(err).Msg("could not set otel service name")
-	}
-	if err := os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:"+stack.Collector.Ports[4317].Port()); err != nil {
-		log.Fatal().Err(err).Msg("could not set otel exporter endpoint")
-	}
 
 	// Set up your otel exporters
 	shutdownOTEL, err := setupOTEL(context.Background(), stack.Collector.Ports[4317])
