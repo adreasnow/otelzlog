@@ -3,8 +3,8 @@ package otelzlog
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"time"
 
@@ -26,6 +26,7 @@ type Hook struct{}
 func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx()
 
+	// return early if the logger isn't enabled for this log level
 	if !e.Enabled() {
 		return
 	}
@@ -43,52 +44,45 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 			Msg("could not pull unmarshal the zerolog event's attribute buffer")
 	}
 
-	// convert each pulled attribute into the equivalent otel log counterpart
+	// convert each pulled attribute into the equivalent otel log and otel trace counterpart
 	var logAttributes []log.KeyValue
 	var traceAttributes []attribute.KeyValue
 	for k, v := range logData {
-		logAttribute := convertAttribute(v)
-		traceAttribute := convertLogToAttribute(logAttribute)
-		logAttributes = append(logAttributes, log.KeyValue{
-			Key:   k,
-			Value: logAttribute,
-		})
-
-		traceAttributes = append(traceAttributes, attribute.KeyValue{
-			Key:   attribute.Key(k),
-			Value: traceAttribute,
-		})
-	}
-
-	var errorAny any
-	for k, v := range logData {
 		switch k {
+		// if there was was an attribute called "error", then record the error in the span and
+		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorFieldName:
-			errorAny = v
+			trace.SpanFromContext(ctx).RecordError(errors.New(v.(string)))
+			logAttribute := convertAttribute(v)
+			logAttributes = append(logAttributes, log.KeyValue{
+				Key:   k,
+				Value: logAttribute,
+			})
+
+		default:
+			logAttribute := convertAttribute(v)
+			logAttributes = append(logAttributes, log.KeyValue{
+				Key:   k,
+				Value: logAttribute,
+			})
+
+			traceAttribute := convertLogToAttribute(logAttribute)
+			traceAttributes = append(traceAttributes, attribute.KeyValue{
+				Key:   attribute.Key(k),
+				Value: traceAttribute,
+			})
 		}
 	}
 
-	if level >= 3 {
-		trace.SpanFromContext(ctx).SetStatus(codes.Error, fmt.Sprintf("%s: %v", msg, errorAny))
-	}
-
-	span := trace.SpanFromContext(ctx).SpanContext()
-	if span.IsValid() {
-		logAttributes = append(logAttributes, log.KeyValue{
-			Key:   "SpanId",
-			Value: log.StringValue(span.SpanID().String()),
-		})
-		logAttributes = append(logAttributes, log.KeyValue{
-			Key:   "TraceId",
-			Value: log.StringValue(span.TraceID().String()),
-		})
-	}
-
+	// add an otel span event (attach the log to the span) and set it as errored if level is >= error
 	trace.SpanFromContext(ctx).AddEvent(msg,
 		trace.WithAttributes(traceAttributes...),
-		trace.WithStackTrace(level >= zerolog.PanicLevel),
 	)
+	if level >= 3 {
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "")
+	}
 
+	// create the otel log event and send it
 	record := log.Record{}
 	record.SetTimestamp(time.Now())
 	record.SetBody(log.StringValue(msg))
@@ -98,7 +92,5 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	record.SetSeverityText(severityText)
 	record.AddAttributes(logAttributes...)
 
-	otelGlobalLogger.GetLoggerProvider().
-		Logger(os.Getenv("OTEL_SERVICE_NAME")).
-		Emit(ctx, record)
+	otelGlobalLogger.GetLoggerProvider().Logger("").Emit(ctx, record)
 }

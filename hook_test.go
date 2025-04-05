@@ -2,11 +2,13 @@ package otelzlog
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/adreasnow/otelstack"
+	"github.com/pkg/errors"
 
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +64,7 @@ func setupOTEL(ctx context.Context) (func(), error) {
 		otelLogGlobal.SetLoggerProvider(
 			sdklog.NewLoggerProvider(
 				sdklog.WithProcessor(
-					sdklog.NewBatchProcessor(exporter),
+					sdklog.NewSimpleProcessor(exporter),
 				),
 				sdklog.WithResource(otelResources),
 			),
@@ -104,7 +106,7 @@ func setupOTELSack(t *testing.T) (stack *otelstack.Stack) {
 func sendTestEvents(ctx context.Context, t *testing.T) (spanID string, traceID string) {
 	t.Helper()
 
-	tracer := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME"))
+	tracer := otel.Tracer("")
 	ctx, span := tracer.Start(ctx, "test.segment")
 	span.SetAttributes(attribute.String("test", "test"))
 	log.Ctx(ctx).Info().Ctx(ctx).Str("test.string", "test-value").Msg("test log")
@@ -137,13 +139,64 @@ func checkEvents(t *testing.T, stack *otelstack.Stack, spanID string, traceID st
 }
 
 func TestHook(t *testing.T) {
-	stack := setupOTELSack(t)
+	t.Run("basic", func(t *testing.T) {
+		stack := setupOTELSack(t)
 
-	ctx := log.
-		Hook(&Hook{}).
-		WithContext(t.Context())
+		ctx := log.
+			Hook(&Hook{}).
+			WithContext(t.Context())
 
-	spanID, traceID := sendTestEvents(ctx, t)
+		spanID, traceID := sendTestEvents(ctx, t)
 
-	checkEvents(t, stack, spanID, traceID)
+		checkEvents(t, stack, spanID, traceID)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		stack := setupOTELSack(t)
+		fmt.Println("http://localhost:" + stack.Jaeger.Ports[16686].Port())
+		fmt.Println("http://localhost:" + stack.Seq.Ports[80].Port())
+
+		ctx := log.
+			Hook(&Hook{}).
+			WithContext(t.Context())
+
+		tracer := otel.Tracer("")
+		func() {
+			ctx, span := tracer.Start(ctx, "test.segment")
+			span.SetAttributes(attribute.String("test", "test"))
+			defer span.End()
+			func() {
+				ctx, span := tracer.Start(ctx, "test.segment")
+				span.SetAttributes(attribute.String("test", "test"))
+				defer span.End()
+
+				log.Ctx(ctx).Error().Ctx(ctx).
+					Err(errors.WithMessage(errors.New("hook: an error ocxurred"), "hook: an error occurred in a lower down function")).
+					Str("test.string", "test-value").
+					Msg("test log")
+				// spanID := span.SpanContext().SpanID().String()
+				// traceID := span.SpanContext().TraceID().String()
+
+			}()
+		}()
+
+		// checkEvents(t, stack, spanID, traceID)
+
+		time.Sleep(time.Minute * 3)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		stack := setupOTELSack(t)
+		fmt.Println("http://localhost:" + stack.Jaeger.Ports[16686].Port())
+
+		ctx := log.
+			Hook(&Hook{}).
+			WithContext(t.Context())
+
+		spanID, traceID := sendTestEvents(ctx, t)
+
+		checkEvents(t, stack, spanID, traceID)
+
+		time.Sleep(time.Minute * 3)
+	})
 }
