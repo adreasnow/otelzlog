@@ -171,7 +171,7 @@ func TestHook(t *testing.T) {
 				defer span.End()
 
 				log.Ctx(ctx).Error().Ctx(ctx).
-					Err(errors.WithMessage(errors.New("hook: an error ocxurred"), "hook: an error occurred in a lower down function")).
+					Err(errors.WithMessage(errors.New("hook: an error occurred"), "hook: an error occurred in a lower down function")).
 					Str("test.string", "test-value").
 					Msg("test log")
 				// spanID := span.SpanContext().SpanID().String()
