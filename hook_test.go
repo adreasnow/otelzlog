@@ -290,21 +290,11 @@ func TestHook(t *testing.T) {
 			}, spanMap["segment.child"].References[0])
 
 			{ // child span
-				require.Len(t, spanMap["segment.child"].Tags, 4)
+				require.Len(t, spanMap["segment.child"].Tags, 2)
 				assert.Contains(t, spanMap["segment.child"].Tags, jaeger.KeyValue{
 					Key:   "otel.scope.name",
 					Type:  "string",
 					Value: serviceName,
-				})
-				assert.Contains(t, spanMap["segment.child"].Tags, jaeger.KeyValue{
-					Key:   "error",
-					Type:  "bool",
-					Value: true,
-				})
-				assert.Contains(t, spanMap["segment.child"].Tags, jaeger.KeyValue{
-					Key:   "otel.status_code",
-					Type:  "string",
-					Value: "ERROR",
 				})
 
 				require.Len(t, spanMap["segment.child"].Logs, 2)

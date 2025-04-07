@@ -32,8 +32,6 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/OpenPeeDeeP/depguard/v2 v2.2.1 h1:vckeWVESWp6Qog7UZSARNqfu/cZqvki8zsuj3piCMx4=
 github.com/OpenPeeDeeP/depguard/v2 v2.2.1/go.mod h1:q4DKzC4UcVaAvcfd41CZh0PWpGgzrVxUYBlgKNGquUo=
-github.com/adreasnow/otelstack v1.1.1 h1:S5Mvw8Dx4SZ9Z76obqqwXVDiSzWuvV8TwYVI6Dhxdsg=
-github.com/adreasnow/otelstack v1.1.1/go.mod h1:d+faSEyJWCXZs7aj9PrtKBLh5m2yS0kl9CVW24RcJm4=
 github.com/adreasnow/otelstack v1.1.3 h1:a2UIdjwi9LsQM537RBFTCanXJnm7OX4gpe2low/Air8=
 github.com/adreasnow/otelstack v1.1.3/go.mod h1:d+faSEyJWCXZs7aj9PrtKBLh5m2yS0kl9CVW24RcJm4=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=

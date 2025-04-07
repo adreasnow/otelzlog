@@ -12,7 +12,6 @@ import (
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
 	otelGlobalLogger "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/trace"
@@ -44,15 +43,15 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	}
 
 	// convert zerolog attrs into otel log and span attrs
-	logAttributes := processSpanAttrs(ctx, msg, level, logData)
+	logAttributes := processSpanAttrs(ctx, msg, logData)
 
 	// create the otel log event and send it
 	sendLogMessage(ctx, msg, level, logAttributes)
 }
 
 // processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
-// It also adds the attributes into the span and sets the span as errored if the level is error or greater.
-func processSpanAttrs(ctx context.Context, msg string, level zerolog.Level, logData map[string]any) (logAttributes []log.KeyValue) {
+// It also adds the attributes into the span and adds the error as an exception.
+func processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []log.KeyValue) {
 	traceAttributes := []attribute.KeyValue{}
 	for k, v := range logData {
 		switch k {
@@ -85,11 +84,6 @@ func processSpanAttrs(ctx context.Context, msg string, level zerolog.Level, logD
 	trace.SpanFromContext(ctx).AddEvent(msg,
 		trace.WithAttributes(traceAttributes...),
 	)
-
-	// set the span as errored if level is >= error
-	if level >= 3 {
-		trace.SpanFromContext(ctx).SetStatus(codes.Error, "")
-	}
 
 	return
 }
