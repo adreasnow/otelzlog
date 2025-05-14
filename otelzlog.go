@@ -79,7 +79,7 @@ func WithLoggerProvider(provider otelLog.LoggerProvider) Option {
 	})
 }
 
-// WithAttributes returns an [Option] that configures writers used by a
+// WithWriter returns an [Option] that configures writers used by a
 // [Hook]. Multiple writers can be specified.
 func WithWriter(w io.Writer) Option {
 	return optFunc(func(c config) config {
@@ -90,7 +90,7 @@ func WithWriter(w io.Writer) Option {
 
 // WithSource returns an [Option] that configures the [Hook] to include
 // the source location of the log record in log attributes. Offset should
-// be increased if using a helper function to wrap the loger call.
+// be increased if using a helper function to wrap the logger call.
 func WithSource(source bool, offset int) Option {
 	return optFunc(func(c config) config {
 		c.source = source
@@ -164,7 +164,7 @@ func New(ctx context.Context, name string, options ...Option) context.Context {
 	}
 
 	if cfg.source {
-		logger = logger.With().CallerWithSkipFrameCount(cfg.sourceOffset).Logger()
+		logger = logger.With().CallerWithSkipFrameCount(cfg.sourceOffset + 2).Logger()
 	}
 
 	ctx = logger.Hook(&hook).WithContext(ctx)

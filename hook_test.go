@@ -41,7 +41,7 @@ func TestHook(t *testing.T) {
 		checkEvents(t, stack, spanID, traceID)
 	})
 
-	t.Run("error without attcahing to span", func(t *testing.T) {
+	t.Run("error without attaching to span", func(t *testing.T) {
 		stack := setupOTELStack(t)
 
 		ctx := log.
@@ -92,7 +92,7 @@ func TestHook(t *testing.T) {
 		}
 	})
 
-	t.Run("error with attcahing to span", func(t *testing.T) {
+	t.Run("error with attaching to span", func(t *testing.T) {
 		stack := setupOTELStack(t)
 
 		ctx := log.
@@ -208,7 +208,7 @@ func TestHook(t *testing.T) {
 		}
 	})
 
-	t.Run("error with stack from panic attcahing to span", func(t *testing.T) {
+	t.Run("error with stack from panic attaching to span", func(t *testing.T) {
 		stack := setupOTELStack(t)
 
 		zerolog.ErrorStackMarshaler = func(_ error) any {

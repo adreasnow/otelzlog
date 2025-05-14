@@ -12,7 +12,6 @@ import (
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log"
 	otelLog "go.opentelemetry.io/otel/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
@@ -57,7 +56,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 // processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
 // It also adds the attributes into the span and adds the error as an exception.
-func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []log.KeyValue) {
+func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []otelLog.KeyValue) {
 	var errorAttr otelLog.KeyValue
 	var stackAttr otelLog.KeyValue
 
@@ -66,12 +65,12 @@ func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[str
 		// if there is an attribute called "error", then record the error in the span and
 		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorFieldName:
-			errorAttr = log.String(string(semconv.ExceptionMessageKey), v.(string))
+			errorAttr = otelLog.String(string(semconv.ExceptionMessageKey), v.(string))
 
 		// if there is an attribute called "stack", then record the stack in the span and
 		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorStackFieldName:
-			stackAttr = log.String(string(semconv.ExceptionStacktraceKey), v.(string))
+			stackAttr = otelLog.String(string(semconv.ExceptionStacktraceKey), v.(string))
 
 		// If there is a "caller" object in the log and if source is enabled in [Hook], then
 		// append these using semconv fields instead of generic string attributes.
@@ -87,12 +86,12 @@ func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[str
 			}
 
 			logAttributes = append(logAttributes,
-				log.String(string(semconv.CodeFilepathKey), filepath),
-				log.Int(string(semconv.CodeLineNumberKey), line),
+				otelLog.String(string(semconv.CodeFilepathKey), filepath),
+				otelLog.Int(string(semconv.CodeLineNumberKey), line),
 			)
 
 		default:
-			logAttributes = append(logAttributes, log.KeyValue{
+			logAttributes = append(logAttributes, otelLog.KeyValue{
 				Key:   k,
 				Value: convertAttribute(v),
 			})
@@ -134,12 +133,12 @@ func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[str
 	return
 }
 
-func (h *Hook) sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAttributes []log.KeyValue) {
+func (h *Hook) sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAttributes []otelLog.KeyValue) {
 	severityNumber, severityText := convertLevel(level)
 
-	record := log.Record{}
+	record := otelLog.Record{}
 	record.SetTimestamp(time.Now())
-	record.SetBody(log.StringValue(msg))
+	record.SetBody(otelLog.StringValue(msg))
 	record.SetSeverity(severityNumber)
 	record.SetSeverityText(severityText)
 	record.AddAttributes(logAttributes...)

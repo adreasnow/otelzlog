@@ -16,8 +16,6 @@ import (
 )
 
 func TestConvertLevel(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		input          zerolog.Level
 		expectedLevel  log.Severity
@@ -70,8 +68,6 @@ func TestConvertLevel(t *testing.T) {
 }
 
 func TestConvertAttribute(t *testing.T) {
-	t.Parallel()
-
 	now := time.Now()
 
 	tests := []struct {
@@ -222,8 +218,6 @@ func TestConvertAttribute(t *testing.T) {
 }
 
 func TestConvertUintValue(t *testing.T) {
-	t.Parallel()
-
 	for range 100 {
 		in := rand.Uint64()
 		t.Run(fmt.Sprintf("%d", in), func(t *testing.T) {

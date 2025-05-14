@@ -44,6 +44,7 @@
     "otelslog",
     "godoc",
     "LINTERS",
-    "linters"
+    "linters",
+    "semconv"
   ]
 }

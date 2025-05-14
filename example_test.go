@@ -61,6 +61,6 @@ func ExampleNew() {
 	}
 
 	// Output:
-	// [INF test message]
+	// [INF example_test.go:48 > test message]
 	// {test message}
 }
