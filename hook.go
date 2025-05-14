@@ -13,12 +13,18 @@ import (
 	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
-	otelGlobalLogger "go.opentelemetry.io/otel/log/global"
+	otelLog "go.opentelemetry.io/otel/log"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // Hook is the parent struct of the otelzlog handler
-type Hook struct{}
+type Hook struct {
+	otelLogger      otelLog.Logger
+	source          bool
+	attachSpanError bool
+	attachSpanEvent bool
+}
 
 // Run extracts the attributes and log level from the `*zerolog.Event`, and
 // pulls the span from the passed in context in order to build the respective
@@ -34,7 +40,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	var logData map[string]any
 	ev := fmt.Sprintf("%s}", reflect.ValueOf(e).Elem().FieldByName("buf"))
 	if err := json.Unmarshal([]byte(ev), &logData); err != nil {
-		// log to the zerolog logger if there is an error with the request
+		// log to the zerolog logger if there is an error reflecting the event's attribute buffer
 		zlog.Ctx(e.GetCtx()).Error().Ctx(e.GetCtx()).
 			Err(err).
 			Str("log.level", level.String()).
@@ -43,52 +49,92 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	}
 
 	// convert zerolog attrs into otel log and span attrs
-	logAttributes := processSpanAttrs(ctx, msg, logData)
+	logAttributes := h.processSpanAttrs(ctx, msg, logData)
 
 	// create the otel log event and send it
-	sendLogMessage(ctx, msg, level, logAttributes)
+	h.sendLogMessage(ctx, msg, level, logAttributes)
 }
 
 // processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
 // It also adds the attributes into the span and adds the error as an exception.
-func processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []log.KeyValue) {
-	traceAttributes := []attribute.KeyValue{}
+func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []log.KeyValue) {
+	var errorAttr otelLog.KeyValue
+	var stackAttr otelLog.KeyValue
+
 	for k, v := range logData {
 		switch k {
-		// if there was was an attribute called "error", then record the error in the span and
+		// if there is an attribute called "error", then record the error in the span and
 		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorFieldName:
-			trace.SpanFromContext(ctx).RecordError(errors.New(v.(string)))
-			logAttribute := convertAttribute(v)
-			logAttributes = append(logAttributes, log.KeyValue{
-				Key:   k,
-				Value: logAttribute,
-			})
+			errorAttr = log.String(string(semconv.ExceptionMessageKey), v.(string))
+
+		// if there is an attribute called "stack", then record the stack in the span and
+		// add it to the log attributes only (not the trace attributes)
+		case zerolog.ErrorStackFieldName:
+			stackAttr = log.String(string(semconv.ExceptionStacktraceKey), v.(string))
+
+		// If there is a "caller" object in the log and if source is enabled in [Hook], then
+		// append these using semconv fields instead of generic string attributes.
+		case zerolog.CallerFieldName:
+			sourcePath, ok := v.(string)
+			if !ok || !h.source {
+				continue
+			}
+
+			filepath, line, err := extractSource(sourcePath)
+			if err != nil {
+				continue
+			}
+
+			logAttributes = append(logAttributes,
+				log.String(string(semconv.CodeFilepathKey), filepath),
+				log.Int(string(semconv.CodeLineNumberKey), line),
+			)
 
 		default:
-			logAttribute := convertAttribute(v)
 			logAttributes = append(logAttributes, log.KeyValue{
 				Key:   k,
-				Value: logAttribute,
-			})
-
-			traceAttribute := convertLogToAttribute(logAttribute)
-			traceAttributes = append(traceAttributes, attribute.KeyValue{
-				Key:   attribute.Key(k),
-				Value: traceAttribute,
+				Value: convertAttribute(v),
 			})
 		}
 	}
 
-	// add an otel span event (attach the log to the span)
-	trace.SpanFromContext(ctx).AddEvent(msg,
-		trace.WithAttributes(traceAttributes...),
-	)
+	// If enabled, add an otel span event (attach the log to the span).
+	if h.attachSpanEvent {
+		traceAttributes := []attribute.KeyValue{}
+
+		for _, logAttr := range logAttributes {
+			traceAttributes = append(traceAttributes, attribute.KeyValue{
+				Key:   attribute.Key(logAttr.Key),
+				Value: convertLogToAttribute(logAttr.Value),
+			})
+		}
+
+		trace.SpanFromContext(ctx).AddEvent(msg,
+			trace.WithAttributes(traceAttributes...),
+		)
+	}
+
+	// Add an error and stack to the log attributes if provided
+	if !errorAttr.Value.Empty() {
+		logAttributes = append(logAttributes, errorAttr)
+	}
+	if !stackAttr.Value.Empty() {
+		logAttributes = append(logAttributes, stackAttr)
+	}
+
+	// If enabled, attach the error and stack to the trace.
+	if h.attachSpanError && !errorAttr.Value.Empty() {
+		trace.SpanFromContext(ctx).RecordError(
+			errors.New(errorAttr.Value.String()),
+			trace.WithStackTrace(!stackAttr.Value.Empty()),
+		)
+	}
 
 	return
 }
 
-func sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAttributes []log.KeyValue) {
+func (h *Hook) sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAttributes []log.KeyValue) {
 	severityNumber, severityText := convertLevel(level)
 
 	record := log.Record{}
@@ -98,5 +144,5 @@ func sendLogMessage(ctx context.Context, msg string, level zerolog.Level, logAtt
 	record.SetSeverityText(severityText)
 	record.AddAttributes(logAttributes...)
 
-	otelGlobalLogger.GetLoggerProvider().Logger("").Emit(ctx, record)
+	h.otelLogger.Emit(ctx, record)
 }

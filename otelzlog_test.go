@@ -13,7 +13,7 @@ func TestNew(t *testing.T) {
 	t.Run("no writer", func(t *testing.T) {
 		stack := setupOTELStack(t)
 
-		ctx := New(t.Context())
+		ctx := New(t.Context(), "test")
 
 		log.Ctx(ctx).Info().Msg("test message")
 
@@ -26,7 +26,8 @@ func TestNew(t *testing.T) {
 
 		buf := new(bytes.Buffer)
 		ctx := New(t.Context(),
-			zerolog.ConsoleWriter{Out: buf, NoColor: true},
+			"test",
+			WithWriter(zerolog.ConsoleWriter{Out: buf, NoColor: true}),
 		)
 
 		log.Ctx(ctx).Info().Msg("test message")
@@ -44,8 +45,9 @@ func TestNew(t *testing.T) {
 		buf2 := new(bytes.Buffer)
 
 		ctx := New(t.Context(),
-			zerolog.ConsoleWriter{Out: buf1, NoColor: true},
-			zerolog.ConsoleWriter{Out: buf2, NoColor: true},
+			"test",
+			WithWriter(zerolog.ConsoleWriter{Out: buf1, NoColor: true}),
+			WithWriter(zerolog.ConsoleWriter{Out: buf2, NoColor: true}),
 		)
 
 		log.Ctx(ctx).Info().Msg("test message")
