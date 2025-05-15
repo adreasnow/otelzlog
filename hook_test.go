@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 
 	otelLogGlobal "go.opentelemetry.io/otel/log/global"
@@ -176,6 +177,17 @@ func TestHook(t *testing.T) {
 					Key:   "otel.scope.name",
 					Type:  "string",
 					Value: serviceName,
+				})
+				// these shouldn't be present unless setSpanError=true in Hook{}
+				assert.NotContains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
+					Key:   "error",
+					Type:  "bool",
+					Value: true,
+				})
+				assert.NotContains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
+					Key:   string(semconv.OtelStatusCodeKey),
+					Type:  "string",
+					Value: "ERROR",
 				})
 
 				require.Len(t, spanMap["segment.child"].Logs, 2)
@@ -391,6 +403,56 @@ func TestHook(t *testing.T) {
 				require.Len(t, spanMap["segment.parent"].Logs[0].Fields, 2)
 
 			}
+		}
+	})
+
+	t.Run("error with set span status", func(t *testing.T) {
+		stack := setupOTELStack(t)
+
+		ctx := log.
+			Hook(&Hook{
+				otelLogger:        otelLogGlobal.GetLoggerProvider().Logger("test"),
+				attachSpanError:   true,
+				attachSpanEvent:   true,
+				setSpanError:      true,
+				setSpanErrorLevel: zerolog.ErrorLevel,
+			}).
+			WithContext(t.Context())
+
+		tracer := otel.Tracer(serviceName)
+		var testErr error
+		func() {
+			ctx, span := tracer.Start(ctx, "segment.child")
+			defer span.End()
+
+			testErr = errors.New("hook: an error occurred")
+			log.Ctx(ctx).Error().Ctx(ctx).
+				Err(testErr).
+				Msg("test log")
+		}()
+
+		time.Sleep(time.Second * 3)
+
+		traces, _, err := stack.Jaeger.GetTraces(1, 10, serviceName)
+		require.NoError(t, err, "must be able to get events from jaeger")
+
+		// time.Sleep(time.Second * 30)
+
+		{ // check traces
+			require.Len(t, traces, 1)
+			require.Len(t, traces[0].Spans, 1)
+
+			require.Len(t, traces[0].Spans[0].Tags, 4)
+			assert.Contains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
+				Key:   "error",
+				Type:  "bool",
+				Value: true,
+			})
+			assert.Contains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
+				Key:   string(semconv.OtelStatusCodeKey),
+				Type:  "string",
+				Value: "ERROR",
+			})
 		}
 	})
 

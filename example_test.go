@@ -9,6 +9,7 @@ import (
 	"github.com/adreasnow/otelstack"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 )
 
 func ExampleNew() {
@@ -44,8 +45,16 @@ func ExampleNew() {
 		log.Fatal().Err(err).Msg("could not create new logger")
 	}
 
-	// Send a log event
-	log.Ctx(ctx).Info().Msg("test message")
+	// Start a span and send a log event.
+	tracer := otel.Tracer("test.service")
+
+	func() {
+		funcCtx, span := tracer.Start(ctx, "segment.parent")
+		defer span.End()
+		// The logger is pulled from the context with the first `.Ctx(funcCtx)` and the context
+		// is added to the zerolog event with the second `.Ctx(funcCtx)` .
+		log.Ctx(funcCtx).Info().Ctx(funcCtx).Msg("test message")
+	}()
 
 	// Check that the log event has made it to the telemetry
 	{
@@ -61,6 +70,6 @@ func ExampleNew() {
 	}
 
 	// Output:
-	// [INF example_test.go:48 > test message]
+	// [INF example_test.go:56 > test message]
 	// {test message}
 }

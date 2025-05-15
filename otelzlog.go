@@ -19,8 +19,10 @@ type config struct {
 	source       bool
 	sourceOffset int
 
-	attachSpanError bool
-	attachSpanEvent bool
+	attachSpanError   bool
+	attachSpanEvent   bool
+	setSpanError      bool
+	setSpanErrorLevel zerolog.Level
 
 	writers []io.Writer
 
@@ -117,6 +119,16 @@ func WithAttachSpanEvent(attach bool) Option {
 	})
 }
 
+// WithSetSpanErrorStatus returns an [Option] that configures the [Hook]
+// to set the span as errored when the provided level or higher is called.
+func WithSetSpanErrorStatus(set bool, level zerolog.Level) Option {
+	return optFunc(func(c config) config {
+		c.setSpanError = set
+		c.setSpanErrorLevel = level
+		return c
+	})
+}
+
 // WithStackHandling returns an [Option] that sets
 // zerolog.ErrorStackMarshaler in order to extract the stack when .Stack()
 // is called on a .Error() event.
@@ -157,10 +169,12 @@ func New(ctx context.Context, name string, options ...Option) context.Context {
 	}
 
 	hook := Hook{
-		otelLogger:      cfg.provider.Logger(name, cfg.loggerOpts...),
-		source:          cfg.source,
-		attachSpanError: cfg.attachSpanError,
-		attachSpanEvent: cfg.attachSpanEvent,
+		otelLogger:        cfg.provider.Logger(name, cfg.loggerOpts...),
+		source:            cfg.source,
+		attachSpanError:   cfg.attachSpanError,
+		attachSpanEvent:   cfg.attachSpanEvent,
+		setSpanError:      cfg.setSpanError,
+		setSpanErrorLevel: cfg.setSpanErrorLevel,
 	}
 
 	if cfg.source {

@@ -146,3 +146,12 @@ func TestWithStackHandling(t *testing.T) {
 
 	assert.NotNil(t, zerolog.ErrorStackMarshaler)
 }
+
+func TestWithSetSpanErrorStatus(t *testing.T) {
+	c := config{}
+
+	c = WithSetSpanErrorStatus(true, zerolog.ErrorLevel).apply(c)
+
+	assert.True(t, c.setSpanError)
+	assert.Equal(t, zerolog.ErrorLevel, c.setSpanErrorLevel)
+}
