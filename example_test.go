@@ -51,7 +51,7 @@ func ExampleNew() {
 	func() {
 		funcCtx, span := tracer.Start(ctx, "segment.parent")
 		defer span.End()
-		// The logger is pulled from the context with the fitst `.Ctx(funcCtx)` and the context
+		// The logger is pulled from the context with the first `.Ctx(funcCtx)` and the context
 		// is added to the zerolog event with the second `.Ctx(funcCtx)` .
 		log.Ctx(funcCtx).Info().Ctx(funcCtx).Msg("test message")
 	}()
