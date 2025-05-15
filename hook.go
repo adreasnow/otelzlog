@@ -4,7 +4,6 @@ package otelzlog
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -60,20 +59,22 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 // processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
 // It also adds the attributes into the span and adds the error as an exception.
 func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any, level zerolog.Level) (logAttributes []otelLog.KeyValue) {
-	var errorAttr otelLog.KeyValue
-	var stackAttr otelLog.KeyValue
-
 	for k, v := range logData {
 		switch k {
 		// if there is an attribute called "error", then record the error in the span and
 		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorFieldName:
-			errorAttr = otelLog.String(string(semconv.ExceptionMessageKey), v.(string))
+			logAttributes = append(logAttributes,
+				otelLog.String(string(semconv.ExceptionMessageKey), v.(string)),
+				otelLog.String("event", "exception"),
+			)
 
 		// if there is an attribute called "stack", then record the stack in the span and
 		// add it to the log attributes only (not the trace attributes)
 		case zerolog.ErrorStackFieldName:
-			stackAttr = otelLog.String(string(semconv.ExceptionStacktraceKey), v.(string))
+			logAttributes = append(logAttributes,
+				otelLog.String(string(semconv.ExceptionStacktraceKey), v.(string)),
+			)
 
 		// If there is a "caller" object in the log and if source is enabled in [Hook], then
 		// append these using semconv fields instead of generic string attributes.
@@ -114,22 +115,6 @@ func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[str
 
 		trace.SpanFromContext(ctx).AddEvent(msg,
 			trace.WithAttributes(traceAttributes...),
-		)
-	}
-
-	// Add an error and stack to the log attributes if provided
-	if !errorAttr.Value.Empty() {
-		logAttributes = append(logAttributes, errorAttr)
-	}
-	if !stackAttr.Value.Empty() {
-		logAttributes = append(logAttributes, stackAttr)
-	}
-
-	// If enabled, attach the error and stack to the trace.
-	if h.attachSpanError && !errorAttr.Value.Empty() {
-		trace.SpanFromContext(ctx).RecordError(
-			errors.New(errorAttr.Value.String()),
-			trace.WithStackTrace(!stackAttr.Value.Empty()),
 		)
 	}
 

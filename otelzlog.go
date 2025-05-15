@@ -4,7 +4,7 @@ package otelzlog
 import (
 	"context"
 	"io"
-	"runtime/debug"
+	"runtime"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -129,13 +129,18 @@ func WithSetSpanErrorStatus(set bool, level zerolog.Level) Option {
 	})
 }
 
-// WithStackHandling returns an [Option] that sets
-// zerolog.ErrorStackMarshaler in order to extract the stack when .Stack()
-// is called on a .Error() event.
+// WithStackHandling returns an [Option] that sets zerolog.ErrorStackMarshaler
+// in order to extract the stack when .Stack() is called on a .Error() event.
+//
+// A Str(). called "stack" can also be passed in and will be set in the OTEL
+// logs/traces accordingly.
 func WithStackHandling() Option {
 	return optFunc(func(c config) config {
 		zerolog.ErrorStackMarshaler = func(_ error) any {
-			return string(debug.Stack())
+			buf := make([]byte, 64<<10)
+			n := runtime.Stack(buf, false)
+
+			return string(buf[:n])
 		}
 		return c
 	})
