@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"runtime/debug"
 	"testing"
 	"time"
 
@@ -84,7 +83,7 @@ func TestHook(t *testing.T) {
 			assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[0].TraceID)
 			assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[0].SpanID)
 
-			require.Len(t, events[0].Properties, 2)
+			require.Len(t, events[0].Properties, 3)
 			assert.Contains(t, events[0].Properties, seq.Property{
 				Name:  "level",
 				Value: "error",
@@ -141,7 +140,7 @@ func TestHook(t *testing.T) {
 			assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[0].TraceID)
 			assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[0].SpanID)
 
-			require.Len(t, events[0].Properties, 2)
+			require.Len(t, events[0].Properties, 3)
 			assert.Contains(t, events[0].Properties, seq.Property{
 				Name:  "level",
 				Value: "error",
@@ -190,22 +189,22 @@ func TestHook(t *testing.T) {
 					Value: "ERROR",
 				})
 
-				require.Len(t, spanMap["segment.child"].Logs, 2)
-				require.Len(t, spanMap["segment.child"].Logs[1].Fields, 3)
-				assert.Contains(t, spanMap["segment.child"].Logs[1].Fields, jaeger.KeyValue{
+				require.Len(t, spanMap["segment.child"].Logs, 1)
+				require.Len(t, spanMap["segment.child"].Logs[0].Fields, 4)
+				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
 					Key:   "event",
 					Type:  "string",
 					Value: "exception",
 				})
-				assert.Contains(t, spanMap["segment.child"].Logs[1].Fields, jaeger.KeyValue{
+				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
 					Key:   "exception.message",
 					Type:  "string",
 					Value: testErr.Error(),
 				})
-				assert.Contains(t, spanMap["segment.child"].Logs[1].Fields, jaeger.KeyValue{
-					Key:   "exception.type",
+				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
+					Key:   "level",
 					Type:  "string",
-					Value: "*errors.errorString",
+					Value: "error",
 				})
 			}
 
@@ -222,10 +221,6 @@ func TestHook(t *testing.T) {
 
 	t.Run("error with stack from panic attaching to span", func(t *testing.T) {
 		stack := setupOTELStack(t)
-
-		zerolog.ErrorStackMarshaler = func(_ error) any {
-			return string(debug.Stack())
-		}
 
 		ctx := log.
 			Hook(&Hook{
@@ -247,7 +242,7 @@ func TestHook(t *testing.T) {
 			defer func() {
 				if r := recover(); r != nil {
 					testErr = errors.New("recovered from a panic during another process")
-					log.Ctx(ctx).Error().Ctx(ctx).Stack().Err(testErr).Send()
+					log.Ctx(ctx).Error().Ctx(ctx).Str("stack", "stack-trace").Err(testErr).Send()
 				}
 			}()
 			func() {
@@ -276,7 +271,7 @@ func TestHook(t *testing.T) {
 				assert.Equal(t, parentSpan.SpanContext().TraceID().String(), events[0].TraceID)
 				assert.Equal(t, parentSpan.SpanContext().SpanID().String(), events[0].SpanID)
 
-				require.Len(t, events[0].Properties, 2)
+				require.Len(t, events[0].Properties, 3)
 				assert.Contains(t, events[0].Properties, seq.Property{
 					Name:  "level",
 					Value: "error",
@@ -297,7 +292,6 @@ func TestHook(t *testing.T) {
 					Value: "panic",
 				})
 			}
-
 		}
 
 		{ // check traces
@@ -369,38 +363,29 @@ func TestHook(t *testing.T) {
 					Value: serviceName,
 				})
 
-				for _, l := range spanMap["segment.parent"].Logs {
-					switch len(l.Fields) {
-					case 2:
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "level",
-							Type:  "string",
-							Value: "error",
-						})
+				require.Len(t, spanMap["segment.parent"].Logs, 1)
+				require.Len(t, spanMap["segment.parent"].Logs[0].Fields, 5)
 
-					case 4:
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "event",
-							Type:  "string",
-							Value: "exception",
-						})
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "exception.message",
-							Type:  "string",
-							Value: testErr.Error(),
-						})
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "exception.type",
-							Type:  "string",
-							Value: "*errors.errorString",
-						})
-					default:
-						t.Fatalf("could not match field to expected")
-					}
-				}
-
-				require.Len(t, spanMap["segment.parent"].Logs, 2)
-				require.Len(t, spanMap["segment.parent"].Logs[0].Fields, 2)
+				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
+					Key:   "event",
+					Type:  "string",
+					Value: "exception",
+				})
+				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
+					Key:   "exception.message",
+					Type:  "string",
+					Value: testErr.Error(),
+				})
+				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
+					Key:   "level",
+					Type:  "string",
+					Value: "error",
+				})
+				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
+					Key:   "exception.stacktrace",
+					Type:  "string",
+					Value: "stack-trace",
+				})
 
 			}
 		}
