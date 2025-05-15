@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	otelLog "go.opentelemetry.io/otel/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
@@ -19,10 +20,12 @@ import (
 
 // Hook is the parent struct of the otelzlog handler
 type Hook struct {
-	otelLogger      otelLog.Logger
-	source          bool
-	attachSpanError bool
-	attachSpanEvent bool
+	otelLogger        otelLog.Logger
+	source            bool
+	attachSpanError   bool
+	attachSpanEvent   bool
+	setSpanError      bool
+	setSpanErrorLevel zerolog.Level
 }
 
 // Run extracts the attributes and log level from the `*zerolog.Event`, and
@@ -48,7 +51,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	}
 
 	// convert zerolog attrs into otel log and span attrs
-	logAttributes := h.processSpanAttrs(ctx, msg, logData)
+	logAttributes := h.processSpanAttrs(ctx, msg, logData, level)
 
 	// create the otel log event and send it
 	h.sendLogMessage(ctx, msg, level, logAttributes)
@@ -56,7 +59,7 @@ func (h *Hook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 // processSpanAttrs converts each pulled attribute into the equivalent otel log counterparts.
 // It also adds the attributes into the span and adds the error as an exception.
-func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any) (logAttributes []otelLog.KeyValue) {
+func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[string]any, level zerolog.Level) (logAttributes []otelLog.KeyValue) {
 	var errorAttr otelLog.KeyValue
 	var stackAttr otelLog.KeyValue
 
@@ -128,6 +131,10 @@ func (h *Hook) processSpanAttrs(ctx context.Context, msg string, logData map[str
 			errors.New(errorAttr.Value.String()),
 			trace.WithStackTrace(!stackAttr.Value.Empty()),
 		)
+	}
+
+	if h.setSpanError && level >= h.setSpanErrorLevel {
+		trace.SpanFromContext(ctx).SetStatus(codes.Error, "")
 	}
 
 	return
