@@ -34,7 +34,11 @@ func ExampleNew() {
 	// Create your new logger
 	buf := new(bytes.Buffer)
 	ctx := New(context.Background(),
-		zerolog.ConsoleWriter{Out: buf, NoColor: true},
+		"test",
+		WithWriter(zerolog.ConsoleWriter{Out: buf, NoColor: true}),
+		WithAttachSpanError(true),
+		WithAttachSpanEvent(true),
+		WithSource(true, 0),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not create new logger")
@@ -57,6 +61,6 @@ func ExampleNew() {
 	}
 
 	// Output:
-	// [INF test message]
+	// [INF example_test.go:48 > test message]
 	// {test message}
 }

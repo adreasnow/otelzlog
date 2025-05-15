@@ -1,6 +1,7 @@
 package otelzlog
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -9,13 +10,12 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 )
 
 func TestConvertLevel(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		input          zerolog.Level
 		expectedLevel  log.Severity
@@ -68,8 +68,6 @@ func TestConvertLevel(t *testing.T) {
 }
 
 func TestConvertAttribute(t *testing.T) {
-	t.Parallel()
-
 	now := time.Now()
 
 	tests := []struct {
@@ -220,8 +218,6 @@ func TestConvertAttribute(t *testing.T) {
 }
 
 func TestConvertUintValue(t *testing.T) {
-	t.Parallel()
-
 	for range 100 {
 		in := rand.Uint64()
 		t.Run(fmt.Sprintf("%d", in), func(t *testing.T) {
@@ -285,6 +281,43 @@ func TestConvertLogToAttribute(t *testing.T) {
 		t.Run(tt.input.AsString(), func(t *testing.T) {
 			out := convertLogToAttribute(tt.input)
 			assert.Equal(t, out, tt.expected)
+		})
+	}
+}
+
+func TestExtractSource(t *testing.T) {
+	tests := []struct {
+		caller   string
+		filePath string
+		line     int
+		err      error
+	}{
+		{
+			caller:   "/path/to/calling/file/main.go:17",
+			filePath: "/path/to/calling/file/main.go",
+			line:     17,
+		},
+		{
+			caller:   "/path/to/calling/file/main.go",
+			filePath: "",
+			line:     0,
+			err:      errors.New("otelzlog: source does not contain path and line number"),
+		},
+		{
+			caller:   "/path/to/calling/file/main.go:aa",
+			filePath: "",
+			line:     0,
+			err:      errors.New("invalid syntax"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.caller, func(t *testing.T) {
+			outFilePath, outLine, outErr := extractSource(tt.caller)
+			if tt.err != nil {
+				require.Contains(t, outErr.Error(), tt.err.Error())
+			}
+			assert.Equal(t, tt.filePath, outFilePath)
+			assert.Equal(t, tt.line, outLine)
 		})
 	}
 }
