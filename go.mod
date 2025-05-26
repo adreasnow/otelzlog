@@ -3,7 +3,7 @@ module github.com/adreasnow/otelzlog
 go 1.24.1
 
 require (
-	github.com/adreasnow/otelstack v1.1.11
+	github.com/adreasnow/otelstack v1.1.12
 	github.com/docker/go-connections v0.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
