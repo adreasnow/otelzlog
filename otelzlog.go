@@ -2,7 +2,6 @@
 package otelzlog
 
 import (
-	"context"
 	"io"
 	"runtime"
 
@@ -19,7 +18,6 @@ type config struct {
 	source       bool
 	sourceOffset int
 
-	attachSpanError   bool
 	attachSpanEvent   bool
 	setSpanError      bool
 	setSpanErrorLevel zerolog.Level
@@ -101,15 +99,6 @@ func WithSource(source bool, offset int) Option {
 	})
 }
 
-// WithAttachSpanError returns an [Option] that configures the [Hook]
-// to attach errors from `log.Error().Err()` to the associated otel span.
-func WithAttachSpanError(attach bool) Option {
-	return optFunc(func(c config) config {
-		c.attachSpanError = attach
-		return c
-	})
-}
-
 // WithAttachSpanEvent returns an [Option] that configures the [Hook]
 // to attach an event to the otel span the zerolog event.
 func WithAttachSpanEvent(attach bool) Option {
@@ -159,9 +148,9 @@ func newCfg(options []Option) config {
 	return c
 }
 
-// New creates a new zerolog logger and embeds it in the context to be passed around your app.
-func New(ctx context.Context, name string, options ...Option) context.Context {
-	logger := log.Logger
+// New creates a new *zerolog.Logger.
+func New(name string, options ...Option) *zerolog.Logger {
+	var logger zerolog.Logger
 
 	cfg := newCfg(options)
 
@@ -176,7 +165,6 @@ func New(ctx context.Context, name string, options ...Option) context.Context {
 	hook := Hook{
 		otelLogger:        cfg.provider.Logger(name, cfg.loggerOpts...),
 		source:            cfg.source,
-		attachSpanError:   cfg.attachSpanError,
 		attachSpanEvent:   cfg.attachSpanEvent,
 		setSpanError:      cfg.setSpanError,
 		setSpanErrorLevel: cfg.setSpanErrorLevel,
@@ -186,7 +174,7 @@ func New(ctx context.Context, name string, options ...Option) context.Context {
 		logger = logger.With().CallerWithSkipFrameCount(cfg.sourceOffset + 2).Logger()
 	}
 
-	ctx = logger.Hook(&hook).WithContext(ctx)
+	logger = logger.Hook(&hook)
 
-	return ctx
+	return &logger
 }

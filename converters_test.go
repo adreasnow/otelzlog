@@ -1,7 +1,6 @@
 package otelzlog
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -301,13 +300,13 @@ func TestExtractSource(t *testing.T) {
 			caller:   "/path/to/calling/file/main.go",
 			filePath: "",
 			line:     0,
-			err:      errors.New("otelzlog: source does not contain path and line number"),
+			err:      fmt.Errorf("otelzlog: source does not contain path and line number"),
 		},
 		{
 			caller:   "/path/to/calling/file/main.go:aa",
 			filePath: "",
 			line:     0,
-			err:      errors.New("invalid syntax"),
+			err:      fmt.Errorf("invalid syntax"),
 		},
 	}
 	for _, tt := range tests {

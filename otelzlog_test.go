@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/adreasnow/otelzlog/otelrecorder"
+
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log/noop"
@@ -13,60 +14,55 @@ import (
 
 func TestNew(t *testing.T) {
 	t.Run("no writer", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		ctx := New(t.Context(),
+		logger := New(
 			"test",
-			WithAttachSpanError(true),
+			WithLoggerProvider(recorder.LogProvider),
 			WithAttachSpanEvent(true),
 		)
 
-		log.Ctx(ctx).Info().Msg("test message")
-
-		spanID, traceID := sendTestEvents(ctx, t)
-		checkEvents(t, stack, spanID, traceID)
+		spanID, traceID := sendTestEvents(t, logger, recorder)
+		checkEvents(t, recorder, spanID, traceID)
 	})
 
 	t.Run("one writer", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
 		buf := new(bytes.Buffer)
-		ctx := New(t.Context(),
+		logger := New(
 			"test",
+			WithLoggerProvider(recorder.LogProvider),
 			WithWriter(zerolog.ConsoleWriter{Out: buf, NoColor: true}),
-			WithAttachSpanError(true),
 			WithAttachSpanEvent(true),
 		)
 
-		log.Ctx(ctx).Info().Msg("test message")
-
-		spanID, traceID := sendTestEvents(ctx, t)
-		checkEvents(t, stack, spanID, traceID)
-
-		assert.Contains(t, buf.String(), "INF test message\n")
+		spanID, traceID := sendTestEvents(t, logger, recorder)
+		checkEvents(t, recorder, spanID, traceID)
 	})
 
 	t.Run("multiple writers", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
 		buf1 := new(bytes.Buffer)
 		buf2 := new(bytes.Buffer)
 
-		ctx := New(t.Context(),
+		logger := New(
 			"test",
+			WithLoggerProvider(recorder.LogProvider),
 			WithWriter(zerolog.ConsoleWriter{Out: buf1, NoColor: true}),
 			WithWriter(zerolog.ConsoleWriter{Out: buf2, NoColor: true}),
-			WithAttachSpanError(true),
 			WithAttachSpanEvent(true),
 		)
 
-		log.Ctx(ctx).Info().Msg("test message")
-
-		spanID, traceID := sendTestEvents(ctx, t)
-		checkEvents(t, stack, spanID, traceID)
+		spanID, traceID := sendTestEvents(t, logger, recorder)
+		checkEvents(t, recorder, spanID, traceID)
 
 		assert.Equal(t, buf1.String(), buf2.String())
-		assert.Contains(t, buf1.String(), "INF test message\n")
+		assert.Contains(t, buf1.String(), "INF test log test-key=test-value\n")
 	})
 }
 
@@ -119,14 +115,6 @@ func TestWithSource(t *testing.T) {
 
 	assert.True(t, c.source)
 	assert.Equal(t, 1, c.sourceOffset)
-}
-
-func TestWithAttachSpanError(t *testing.T) {
-	c := config{}
-
-	c = WithAttachSpanError(true).apply(c)
-
-	assert.True(t, c.attachSpanError)
 }
 
 func TestWithAttachSpanEvent(t *testing.T) {

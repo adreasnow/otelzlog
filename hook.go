@@ -21,7 +21,6 @@ import (
 type Hook struct {
 	otelLogger        otelLog.Logger
 	source            bool
-	attachSpanError   bool
 	attachSpanEvent   bool
 	setSpanError      bool
 	setSpanErrorLevel zerolog.Level
