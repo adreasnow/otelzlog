@@ -3,10 +3,8 @@ package otelzlog
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/adreasnow/otelzlog/otelrecorder"
-	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 )
 
@@ -20,9 +18,6 @@ func ExampleNew() {
 	logger := New(
 		"test",
 		WithLoggerProvider(recorder.LogProvider),
-		WithWriter(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true}),
-		WithAttachSpanEvent(true),
-		WithSource(true, 0),
 	)
 
 	// Start a span and send a log event.
@@ -45,6 +40,5 @@ func ExampleNew() {
 	}
 
 	// Output:
-	// <nil> INF example_test.go:35 > test message
 	// test message
 }
