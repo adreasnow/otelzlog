@@ -171,7 +171,7 @@ func New(name string, options ...Option) *zerolog.Logger {
 	}
 
 	if cfg.source {
-		logger = logger.With().CallerWithSkipFrameCount(cfg.sourceOffset + 2).Logger()
+		logger = logger.With().CallerWithSkipFrameCount(cfg.sourceOffset + 2).Timestamp().Logger()
 	}
 
 	logger = logger.Hook(&hook)
