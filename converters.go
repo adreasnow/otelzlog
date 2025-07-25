@@ -3,7 +3,6 @@
 package otelzlog
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -169,7 +168,7 @@ func convertLogToAttribute(attr log.Value) attribute.Value {
 func extractSource(source string) (filepath string, line int, err error) {
 	colonSplit := strings.Split(source, ":")
 	if len(colonSplit) != 2 {
-		err = errors.New("otelzlog: source does not contain path and line number")
+		err = fmt.Errorf("otelzlog: source does not contain path and line number")
 		return
 	}
 

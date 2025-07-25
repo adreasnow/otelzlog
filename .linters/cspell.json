@@ -45,6 +45,10 @@
     "godoc",
     "LINTERS",
     "linters",
-    "semconv"
+    "semconv",
+    "otelrecorder",
+    "tracetest",
+    "logtest",
+    "Syncer"
   ]
 }

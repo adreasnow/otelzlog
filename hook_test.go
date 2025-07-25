@@ -1,507 +1,265 @@
 package otelzlog
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
+	"fmt"
 	"testing"
-	"time"
 
-	"github.com/adreasnow/otelstack/jaeger"
-	"github.com/adreasnow/otelstack/seq"
-	"github.com/pkg/errors"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"github.com/adreasnow/otelzlog/otelrecorder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.opentelemetry.io/otel/trace"
 
-	otelLogGlobal "go.opentelemetry.io/otel/log/global"
+	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestHook(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		ctx := log.
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).
 			Hook(&Hook{
-				otelLogger:      otelLogGlobal.GetLoggerProvider().Logger("test"),
-				attachSpanError: true,
+				otelLogger:      recorder.LogProvider.Logger("test"),
 				attachSpanEvent: true,
-			}).
-			WithContext(t.Context())
+			})
 
-		spanID, traceID := sendTestEvents(ctx, t)
+		spanID, traceID := sendTestEvents(t, &logger, recorder)
 
-		time.Sleep(time.Second * 30)
-
-		checkEvents(t, stack, spanID, traceID)
+		checkEvents(t, recorder, spanID, traceID)
 	})
 
 	t.Run("error without attaching to span", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		ctx := log.
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).
 			Hook(&Hook{
-				otelLogger: otelLogGlobal.GetLoggerProvider().Logger("test"),
-			}).
-			WithContext(t.Context())
+				otelLogger: recorder.LogProvider.Logger("test"),
+			})
 
-		tracer := otel.Tracer(serviceName)
-		var parentSpan trace.Span
-		var childSpan trace.Span
+		tracer := recorder.TracerProvider.Tracer(serviceName)
+		var segment trace.Span
 		var testErr error
-		func() {
-			ctx, parentSpan = tracer.Start(ctx, "segment.parent")
-			defer parentSpan.End()
-			func() {
-				ctx, childSpan = tracer.Start(ctx, "segment.child")
-				defer childSpan.End()
 
-				testErr = errors.WithMessage(errors.New("hook: an error occurred"), "hook: an error occurred in a lower down function")
-				log.Ctx(ctx).Error().Ctx(ctx).
-					Err(testErr).
-					Msg("test log")
-			}()
-		}()
+		{
+			ctx := t.Context()
+			ctx, segment = tracer.Start(ctx, "segment")
+			defer segment.End()
 
-		time.Sleep(time.Second * 3)
+			testErr = fmt.Errorf("hook: an error occurred")
+			logger.Error().Ctx(ctx).
+				Err(testErr).
+				Msg("test log")
+		}
 
-		events, _, err := stack.Seq.GetEvents(1, 10)
-		require.NoError(t, err, "must be able to get events from seq")
+		logs := recorder.GetLogs()
 
 		{ // check logs
-			require.Len(t, events, 1)
-			require.Len(t, events[0].Messages, 1)
-			assert.Equal(t, "test log", events[0].Messages[0].Text)
+			require.Len(t, logs, 1)
 
-			assert.Equal(t, "ERROR", events[0].Level)
+			attrMap := otelrecorder.LogKVListToMap(logs[0].Attributes)
 
-			assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[0].TraceID)
-			assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[0].SpanID)
+			assert.Len(t, attrMap, 3)
+			assert.Equal(t, "error", attrMap["level"].AsString())
+			assert.Equal(t, "exception", attrMap["event"].AsString())
+			assert.Equal(t, "hook: an error occurred", attrMap["exception.message"].AsString())
+		}
 
-			require.Len(t, events[0].Properties, 3)
-			assert.Contains(t, events[0].Properties, seq.Property{
-				Name:  "level",
-				Value: "error",
-			})
-			assert.Equal(t, events[0].Exception, testErr.Error())
+		{ // check spans
+			// no events should be recorded in the span
+			spans := recorder.GetSpans()
+			assert.Len(t, spans["segment"].Events, 0)
 		}
 	})
 
 	t.Run("error with attaching to span", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		ctx := log.
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).
 			Hook(&Hook{
-				otelLogger:      otelLogGlobal.GetLoggerProvider().Logger("test"),
-				attachSpanError: true,
+				otelLogger:      recorder.LogProvider.Logger("test"),
 				attachSpanEvent: true,
-			}).
-			WithContext(t.Context())
-
-		tracer := otel.Tracer(serviceName)
-		var parentSpan trace.Span
-		var childSpan trace.Span
-		var childCtx context.Context
-		var testErr error
-		func() {
-			ctx, parentSpan = tracer.Start(ctx, "segment.parent")
-			defer parentSpan.End()
-			func() {
-				childCtx, childSpan = tracer.Start(ctx, "segment.child")
-				defer childSpan.End()
-
-				testErr = errors.WithMessage(errors.New("hook: an error occurred"), "hook: an error occurred in a lower down function")
-				log.Ctx(childCtx).Error().Ctx(childCtx).
-					Err(testErr).
-					Msg("test log")
-			}()
-		}()
-
-		time.Sleep(time.Second * 3)
-
-		events, _, err := stack.Seq.GetEvents(1, 10)
-		require.NoError(t, err, "must be able to get events from seq")
-
-		traces, _, err := stack.Jaeger.GetTraces(1, 10, serviceName)
-		require.NoError(t, err, "must be able to get events from jaeger")
-
-		{ // check logs
-			require.Len(t, events, 1)
-			require.Len(t, events[0].Messages, 1)
-			assert.Equal(t, "test log", events[0].Messages[0].Text)
-
-			assert.Equal(t, "ERROR", events[0].Level)
-
-			assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[0].TraceID)
-			assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[0].SpanID)
-
-			require.Len(t, events[0].Properties, 3)
-			assert.Contains(t, events[0].Properties, seq.Property{
-				Name:  "level",
-				Value: "error",
 			})
-			assert.Equal(t, events[0].Exception, testErr.Error())
+
+		tracer := recorder.TracerProvider.Tracer(serviceName)
+
+		{
+			ctx, segment := tracer.Start(t.Context(), "segment")
+
+			testErr := fmt.Errorf("hook: an error occurred")
+			logger.Error().Ctx(ctx).
+				Err(testErr).
+				Msg("test log")
+
+			segment.End()
 		}
 
-		{ // check traces
-			require.Len(t, traces, 1)
-			require.Len(t, traces[0].Spans, 2)
-			spanMap := map[string]jaeger.Span{
-				traces[0].Spans[0].OperationName: traces[0].Spans[0],
-				traces[0].Spans[1].OperationName: traces[0].Spans[1],
-			}
-			assert.Contains(t, spanMap, "segment.parent")
-			assert.Contains(t, spanMap, "segment.child")
-
-			assert.Equal(t, parentSpan.SpanContext().TraceID().String(), spanMap["segment.parent"].TraceID)
-			assert.Equal(t, parentSpan.SpanContext().SpanID().String(), spanMap["segment.parent"].SpanID)
-			assert.Equal(t, childSpan.SpanContext().TraceID().String(), spanMap["segment.child"].TraceID)
-			assert.Equal(t, childSpan.SpanContext().SpanID().String(), spanMap["segment.child"].SpanID)
-
-			require.Len(t, spanMap["segment.child"].References, 1)
-			assert.Equal(t, jaeger.Reference{
-				RefType: "CHILD_OF",
-				TraceID: spanMap["segment.parent"].TraceID,
-				SpanID:  spanMap["segment.parent"].SpanID,
-			}, spanMap["segment.child"].References[0])
-
-			{ // child span
-				require.Len(t, spanMap["segment.child"].Tags, 2)
-				assert.Contains(t, spanMap["segment.child"].Tags, jaeger.KeyValue{
-					Key:   "otel.scope.name",
-					Type:  "string",
-					Value: serviceName,
-				})
-				// these shouldn't be present unless setSpanError=true in Hook{}
-				assert.NotContains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
-					Key:   "error",
-					Type:  "bool",
-					Value: true,
-				})
-				assert.NotContains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
-					Key:   string(semconv.OtelStatusCodeKey),
-					Type:  "string",
-					Value: "ERROR",
-				})
-
-				require.Len(t, spanMap["segment.child"].Logs, 1)
-				require.Len(t, spanMap["segment.child"].Logs[0].Fields, 4)
-				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "event",
-					Type:  "string",
-					Value: "exception",
-				})
-				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "exception.message",
-					Type:  "string",
-					Value: testErr.Error(),
-				})
-				assert.Contains(t, spanMap["segment.child"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "level",
-					Type:  "string",
-					Value: "error",
-				})
-			}
-
-			{ // parent span
-				require.Len(t, spanMap["segment.parent"].Tags, 2)
-				assert.Contains(t, spanMap["segment.parent"].Tags, jaeger.KeyValue{
-					Key:   "otel.scope.name",
-					Type:  "string",
-					Value: serviceName,
-				})
-			}
-		}
-	})
-
-	t.Run("error with stack from panic attaching to span", func(t *testing.T) {
-		stack := setupOTELStack(t)
-
-		ctx := log.
-			Hook(&Hook{
-				otelLogger:      otelLogGlobal.GetLoggerProvider().Logger("test"),
-				attachSpanError: true,
-				attachSpanEvent: true,
-			}).
-			WithContext(t.Context())
-
-		tracer := otel.Tracer(serviceName)
-		var parentSpan trace.Span
-		var childSpan trace.Span
-		var childCtx context.Context
-
-		var testErr error
-		func() {
-			ctx, parentSpan = tracer.Start(ctx, "segment.parent")
-			defer parentSpan.End()
-			defer func() {
-				if r := recover(); r != nil {
-					testErr = errors.New("recovered from a panic during another process")
-					log.Ctx(ctx).Error().Ctx(ctx).Str("stack", "stack-trace").Err(testErr).Send()
-				}
-			}()
-			func() {
-				childCtx, childSpan = tracer.Start(ctx, "segment.child")
-				defer childSpan.End()
-
-				log.Ctx(childCtx).Panic().Ctx(childCtx).Send()
-			}()
-		}()
-
-		time.Sleep(time.Second * 3)
-
-		events, _, err := stack.Seq.GetEvents(2, 10)
-		require.NoError(t, err, "must be able to get events from seq")
-
-		traces, _, err := stack.Jaeger.GetTraces(1, 10, serviceName)
-		require.NoError(t, err, "must be able to get events from jaeger")
-
+		logs := recorder.GetLogs()
 		{ // check logs
-			require.Len(t, events, 2)
-			require.Len(t, events[0].Messages, 1)
-			{ // parent
-				assert.Equal(t, "(No message)", events[0].Messages[0].Text)
-				assert.Equal(t, "ERROR", events[0].Level)
+			require.Len(t, logs, 1)
+			assert.Equal(t, "test log", logs[0].Body.String())
 
-				assert.Equal(t, parentSpan.SpanContext().TraceID().String(), events[0].TraceID)
-				assert.Equal(t, parentSpan.SpanContext().SpanID().String(), events[0].SpanID)
+			assert.Equal(t, log.SeverityError, logs[0].Severity)
 
-				require.Len(t, events[0].Properties, 3)
-				assert.Contains(t, events[0].Properties, seq.Property{
-					Name:  "level",
-					Value: "error",
-				})
-				assert.Contains(t, events[0].Exception, testErr.Error())
-			}
+			attrMap := otelrecorder.LogKVListToMap(logs[0].Attributes)
 
-			{ // child
-				assert.Equal(t, "(No message)", events[1].Messages[0].Text)
-				assert.Equal(t, "FATAL", events[1].Level)
-
-				assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[1].TraceID)
-				assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[1].SpanID)
-
-				require.Len(t, events[1].Properties, 2)
-				assert.Contains(t, events[1].Properties, seq.Property{
-					Name:  "level",
-					Value: "panic",
-				})
-			}
+			assert.Len(t, attrMap, 3)
+			assert.Equal(t, "error", attrMap["level"].AsString())
+			assert.Equal(t, "exception", attrMap["event"].AsString())
+			assert.Equal(t, "hook: an error occurred", attrMap["exception.message"].AsString())
 		}
 
-		{ // check traces
-			require.Len(t, traces, 1)
-			require.Len(t, traces[0].Spans, 2)
-			spanMap := map[string]jaeger.Span{
-				traces[0].Spans[0].OperationName: traces[0].Spans[0],
-				traces[0].Spans[1].OperationName: traces[0].Spans[1],
-			}
-			assert.Contains(t, spanMap, "segment.parent")
-			assert.Contains(t, spanMap, "segment.child")
+		spans := recorder.GetSpans()
+		{ // check spans
+			require.Len(t, spans, 1)
 
-			assert.Equal(t, parentSpan.SpanContext().TraceID().String(), spanMap["segment.parent"].TraceID)
-			assert.Equal(t, parentSpan.SpanContext().SpanID().String(), spanMap["segment.parent"].SpanID)
-			assert.Equal(t, childSpan.SpanContext().TraceID().String(), spanMap["segment.child"].TraceID)
-			assert.Equal(t, childSpan.SpanContext().SpanID().String(), spanMap["segment.child"].SpanID)
+			span, ok := spans["segment"]
+			require.True(t, ok)
 
-			require.Len(t, spanMap["segment.child"].References, 1)
-			assert.Equal(t, jaeger.Reference{
-				RefType: "CHILD_OF",
-				TraceID: spanMap["segment.parent"].TraceID,
-				SpanID:  spanMap["segment.parent"].SpanID,
-			}, spanMap["segment.child"].References[0])
+			assert.Equal(t, codes.Unset, span.Status.Code)
+			assert.Equal(t, "", span.Status.Description)
 
-			{ // child span
-				require.Len(t, spanMap["segment.child"].Tags, 2)
-				assert.Contains(t, spanMap["segment.child"].Tags, jaeger.KeyValue{
-					Key:   "otel.scope.name",
-					Type:  "string",
-					Value: serviceName,
-				})
+			assert.Len(t, span.Events, 1)
+			assert.Equal(t, "test log", span.Events[0].Name)
 
-				require.Len(t, spanMap["segment.child"].Logs, 2)
-				for _, l := range spanMap["segment.child"].Logs {
-					switch len(l.Fields) {
-					case 2:
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "level",
-							Type:  "string",
-							Value: "panic",
-						})
-					case 3:
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "event",
-							Type:  "string",
-							Value: "exception",
-						})
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "exception.message",
-							Type:  "string",
-							Value: "",
-						})
-						assert.Contains(t, l.Fields, jaeger.KeyValue{
-							Key:   "exception.type",
-							Type:  "string",
-							Value: ".string",
-						})
-					default:
-						t.Fatalf("could not match field to expected")
-					}
-				}
-			}
+			attrMap := otelrecorder.AttributeKVListToMap(span.Events[0].Attributes)
+			assert.Len(t, attrMap, 3)
 
-			{ // parent span
-				require.Len(t, spanMap["segment.parent"].Tags, 2)
-				assert.Contains(t, spanMap["segment.parent"].Tags, jaeger.KeyValue{
-					Key:   "otel.scope.name",
-					Type:  "string",
-					Value: serviceName,
-				})
-
-				require.Len(t, spanMap["segment.parent"].Logs, 1)
-				require.Len(t, spanMap["segment.parent"].Logs[0].Fields, 5)
-
-				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "event",
-					Type:  "string",
-					Value: "exception",
-				})
-				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "exception.message",
-					Type:  "string",
-					Value: testErr.Error(),
-				})
-				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "level",
-					Type:  "string",
-					Value: "error",
-				})
-				assert.Contains(t, spanMap["segment.parent"].Logs[0].Fields, jaeger.KeyValue{
-					Key:   "exception.stacktrace",
-					Type:  "string",
-					Value: "stack-trace",
-				})
-
-			}
+			assert.Equal(t, "error", attrMap["level"].AsString())
+			assert.Equal(t, "exception", attrMap["event"].AsString())
+			assert.Equal(t, "hook: an error occurred", attrMap["exception.message"].AsString())
 		}
 	})
 
 	t.Run("error with set span status", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		ctx := log.
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).
 			Hook(&Hook{
-				otelLogger:        otelLogGlobal.GetLoggerProvider().Logger("test"),
-				attachSpanError:   true,
-				attachSpanEvent:   true,
+				otelLogger:        recorder.LogProvider.Logger("test"),
 				setSpanError:      true,
 				setSpanErrorLevel: zerolog.ErrorLevel,
-			}).
-			WithContext(t.Context())
+			})
 
-		tracer := otel.Tracer(serviceName)
+		tracer := recorder.TracerProvider.Tracer(serviceName)
 		var testErr error
-		func() {
-			ctx, span := tracer.Start(ctx, "segment.child")
-			defer span.End()
+		{
+			ctx := t.Context()
+			ctx, span := tracer.Start(ctx, "segment")
 
-			testErr = errors.New("hook: an error occurred")
-			log.Ctx(ctx).Error().Ctx(ctx).
+			testErr = fmt.Errorf("hook: an error occurred")
+			logger.Error().Ctx(ctx).
 				Err(testErr).
 				Msg("test log")
-		}()
-
-		time.Sleep(time.Second * 3)
-
-		traces, _, err := stack.Jaeger.GetTraces(1, 10, serviceName)
-		require.NoError(t, err, "must be able to get events from jaeger")
-
-		// time.Sleep(time.Second * 30)
-
-		{ // check traces
-			require.Len(t, traces, 1)
-			require.Len(t, traces[0].Spans, 1)
-
-			require.Len(t, traces[0].Spans[0].Tags, 4)
-			assert.Contains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
-				Key:   "error",
-				Type:  "bool",
-				Value: true,
-			})
-			assert.Contains(t, traces[0].Spans[0].Tags, jaeger.KeyValue{
-				Key:   string(semconv.OtelStatusCodeKey),
-				Type:  "string",
-				Value: "ERROR",
-			})
+			span.End()
 		}
+
+		spans := recorder.GetSpans()
+		{ // check spans
+			require.Len(t, spans, 1)
+
+			span, ok := spans["segment"]
+			require.True(t, ok)
+
+			assert.Equal(t, codes.Error, span.Status.Code)
+
+			assert.Len(t, span.Events, 0)
+		}
+
 	})
 
 	t.Run("source", func(t *testing.T) {
-		stack := setupOTELStack(t)
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
 
-		buf := new(bytes.Buffer)
-
-		ctx := log.With().CallerWithSkipFrameCount(0).Logger().
-			Output(buf).
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).With().CallerWithSkipFrameCount(2).
+			Logger().
 			Hook(&Hook{
-				otelLogger: otelLogGlobal.GetLoggerProvider().Logger("test"),
+				otelLogger: recorder.LogProvider.Logger("test"),
 				source:     true,
-			}).WithContext(t.Context())
+			})
 
-		tracer := otel.Tracer(serviceName)
-		var parentSpan trace.Span
-		var childSpan trace.Span
+		tracer := recorder.TracerProvider.Tracer(serviceName)
+		{
+			ctx, span := tracer.Start(t.Context(), "segment")
+			logger.Info().Ctx(ctx).
+				Msg("test log")
+			span.End()
+		}
+
+		logs := recorder.GetLogs()
+
+		{ // check logs
+			require.Len(t, logs, 1)
+			attrMap := otelrecorder.LogKVListToMap(logs[0].Attributes)
+
+			require.Len(t, attrMap, 3)
+			fmt.Println(attrMap)
+			assert.Contains(t, attrMap["code.filepath"].AsString(), "otelzlog/hook_test.go")
+			assert.Equal(t, int64(195), attrMap["code.lineno"].AsInt64())
+			assert.Equal(t, "info", attrMap["level"].AsString())
+
+		}
+	})
+
+	t.Run("error with stack from panic attaching to span", func(t *testing.T) {
+		recorder := otelrecorder.NewRecorder()
+		t.Cleanup(recorder.Cleanup)
+
+		logger := zerolog.
+			New(zerolog.TestWriter{T: t}).
+			Hook(&Hook{
+				otelLogger: recorder.LogProvider.Logger("test"),
+			})
+
+		tracer := recorder.TracerProvider.Tracer(serviceName)
+
+		var testErr error
 		func() {
-			ctx, parentSpan = tracer.Start(ctx, "segment.parent")
-			defer parentSpan.End()
+			ctx := t.Context()
+			ctx, span := tracer.Start(ctx, "segment.parent")
+			defer span.End()
+			defer func() {
+				if r := recover(); r != nil {
+					testErr = fmt.Errorf("recovered from a panic during another process")
+					logger.Error().Ctx(ctx).Str("stack", "stack-trace").Err(testErr).Send()
+				}
+			}()
 			func() {
-				ctx, childSpan = tracer.Start(ctx, "segment.child")
-				defer childSpan.End()
-				log.Ctx(ctx).Info().Ctx(ctx).
-					Msg("test log")
+				logger.Panic().Ctx(ctx).Send()
 			}()
 		}()
 
-		time.Sleep(time.Second * 3)
-
-		events, _, err := stack.Seq.GetEvents(1, 10)
-		require.NoError(t, err, "must be able to get events from seq")
+		logs := recorder.GetLogs()
 
 		{ // check logs
-			require.Len(t, events, 1)
-			require.Len(t, events[0].Messages, 1)
-			assert.Equal(t, "test log", events[0].Messages[0].Text)
+			require.Len(t, logs, 2)
+			{ // panic log
+				panicLog := logs[0]
+				assert.Equal(t, log.SeverityFatal, panicLog.Severity)
+			}
 
-			assert.Equal(t, "INFO", events[0].Level)
+			{ // recover log
+				recoverLog := logs[1]
+				assert.Equal(t, log.SeverityError, recoverLog.Severity)
 
-			assert.Equal(t, childSpan.SpanContext().TraceID().String(), events[0].TraceID)
-			assert.Equal(t, childSpan.SpanContext().SpanID().String(), events[0].SpanID)
+				attrMap := otelrecorder.LogKVListToMap(recoverLog.Attributes)
+				require.Len(t, attrMap, 4)
 
-			require.Len(t, events[0].Properties, 3)
-			assert.Contains(t, events[0].Properties, seq.Property{
-				Name:  "level",
-				Value: "info",
-			})
-
-			m := map[string]any{}
-			err := json.Unmarshal(buf.Bytes(), &m)
-			require.NoError(t, err)
-
-			filepath, line, err := extractSource(m["caller"].(string))
-			require.NoError(t, err)
-
-			assert.Contains(t, events[0].Properties, seq.Property{
-				Name: "code",
-				Value: map[string]any{
-					"filepath": filepath,
-					"lineno":   float64(line),
-				},
-			})
+				assert.Equal(t, "exception", attrMap["event"].AsString())
+				assert.Equal(t, testErr.Error(), attrMap["exception.message"].AsString())
+				assert.Equal(t, "stack-trace", attrMap["exception.stacktrace"].AsString())
+				assert.Equal(t, "error", attrMap["level"].AsString())
+			}
 		}
 	})
 }
