@@ -4,7 +4,7 @@ go 1.24.1
 
 require (
 	github.com/rs/zerolog v1.34.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/log v0.13.0
 	go.opentelemetry.io/otel/log/logtest v0.13.0
