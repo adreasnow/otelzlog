@@ -3,7 +3,7 @@ module github.com/adreasnow/otelzlog
 go 1.25.0
 
 require (
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/log v0.19.0
